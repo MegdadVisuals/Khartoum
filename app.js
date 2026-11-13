@@ -64,7 +64,8 @@
 
   /* ---------- money math ---------- */
   function spentFrom(src) {
-    return S.tx.reduce(function (a, t) { return t.src === src ? a + t.amt : a; }, 0);
+    // imported bank lines are already inside the statement's closing balance
+    return S.tx.reduce(function (a, t) { return t.src === src && !t.bank ? a + t.amt : a; }, 0);
   }
   // money moved in or out of a wallet that is not spending (envelope, debts, roommate)
   function moved(src) {
@@ -76,6 +77,11 @@
     if (!S.vault) S.vault = [];
     if (!S.moves) S.moves = [];
     if (!S.iou) S.iou = [];
+    if (!S.rules) S.rules = {};
+    if (!S.seenBank) S.seenBank = {};
+    if (!S.pending) S.pending = [];
+    if (!S.inc) S.inc = [];
+    if (!S.created) S.created = Object.keys(S.checkins).sort()[0] || today();
   }
   function r2(n) { return Math.round(n * 100) / 100; }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
@@ -225,6 +231,7 @@
   // n = how many steps are rebuilt; steps from index `from` up to n appear with a pop
   function city(n, from) {
     if (from === undefined) from = n;
+    if (window.RKArt) return window.RKArt.street({ n: n, from: from, total: STEPS.length, bridge: S ? frac('bridge') : 0 });
     var p = n / STEPS.length, id = 'sky' + n + '_' + from;
     function on(i) { return i < n; }
     function g(i, s) { return '<g' + (i >= from && i < n ? ' class="pop"' : '') + '>' + s + '</g>'; }
@@ -406,7 +413,7 @@
       ? '<button class="nothing done" disabled>✓ You showed up today</button>'
       : '<button class="nothing" data-act="nothing">Nothing to log today</button>';
 
-    app.innerHTML = cityCard() + hero + stats + nothing + goalsCard() + iouCard() + renderList() +
+    app.innerHTML = cityCard() + hero + stats + nothing + goalsCard() + iouCard() + bankCard() + renderList() +
       '<button class="fab" data-act="log"><i>+</i> Log a purchase</button>';
     if (won) toast((won === 1 ? 'You stayed under your number' : won + ' days under your number') + ': +' + won * B_UNDER + ' 🧱');
     celebrate();
@@ -725,6 +732,14 @@
 
   /* ---------- Khartoum from above ---------- */
   function cityMap(n) {
+    if (window.RKArt) {
+      var gs = {};
+      Object.keys(KINDS).forEach(function (k) {
+        var gl = goalByKind(k);
+        gs[k] = gl ? { id: gl.id, name: esc(gl.name.length > 14 ? gl.name.slice(0, 13) + '…' : gl.name), f: frac(k) } : null;
+      });
+      return window.RKArt.map({ n: n, total: STEPS.length, goals: gs });
+    }
     var p = n / STEPS.length, i;
     function nileX(y) { return y <= 205 ? 175 - 25 * y / 205 : 150 - 55 * (y - 205) / 215; }
     var BP = [[150, 205], [200, 180], [260, 190], [320, 160], [400, 150]];
@@ -811,6 +826,138 @@
     return h + '<rect width="400" height="412" fill="#5d5050" opacity="' + (0.18 * (1 - p)).toFixed(2) + '" pointer-events="none"/></svg>';
   }
 
+  /* ---------- bank statement import ---------- */
+  var AUTO = [
+    [/metro|\bbus\b|uber|careem|bolt|jeeny|taxi|fuel|petrol|aldrees|sasco/i, 'transport'],
+    [/pharm|hospital|clinic|medical|nahdi|dawaa|dental/i, 'care'],
+    [/netflix|spotify|adobe|capcut|godaddy|anthropic|claude|openai|apple com|google|youtube|microsoft|minecraft|mojang|icloud|mobily|zain/i, 'subs'],
+    [/panda|othaim|tamimi|danube|lulu|carrefour|bakery|supermarket|grocery|baqala|laundry|tawfir/i, 'groceries'],
+    [/restaurant|cafe|coffee|kitchen|burger|pizza|shawarma|mcdonald|kfc|albaik|herfy|kudu|starbucks|dunkin|hungerstation|jahez|keeta|broast/i, 'eat'],
+    [/jarir|noon|amazon|shein|ikea|zara|centrepoint/i, 'shop']
+  ];
+  var KIND = {
+    salary: '💵 Salary', freelance: '🎨 Freelance', roommate: '🏠 Roommate paid me back',
+    own: '🔁 My own money, just moved', notmine: '🚫 Not mine (passing through)', goal: '🎯 Paid for a savings goal (like rent)'
+  };
+  function near(a, b) { return Math.abs(a - b) < 0.006; }
+  function ruleKey(r) {
+    if (r.type === 'online') return '';
+    if (r.who) return 'w:' + r.who.toLowerCase();
+    return r.type === 'transfer' && r.arabic ? 'a:' + (r.amt > 0 ? '+' : '-') + r.arabic : '';
+  }
+  function guess(r) {
+    if (r.type === 'deposit' || r.type === 'atm') return { t: 'kind', v: 'own' };
+    var k = ruleKey(r);
+    if (k && S.rules[k]) return S.rules[k];
+    if (r.amt < 0 && r.type === 'card' && r.who) {
+      for (var i = 0; i < AUTO.length; i++) if (AUTO[i][0].test(r.who)) return { t: 'cat', v: AUTO[i][1] };
+    }
+    return null;
+  }
+  function rowTitle(r) {
+    return r.who || (r.type === 'online' ? 'Online purchase' : r.type === 'transfer' ? (r.amt > 0 ? 'Transfer in' : 'Transfer out') : r.type === 'deposit' ? 'Cash deposit' : r.type === 'atm' ? 'Cash withdrawal' : 'Bank transaction');
+  }
+  // put one bank line where it belongs
+  function place(r, dec) {
+    if (dec.t === 'cat') {
+      S.tx.push({ id: uid(), date: r.date, ts: parse(r.date).getTime() + 432e5, amt: Math.abs(r.amt), cat: dec.v, src: 'bank', note: rowTitle(r), bank: true, key: r.key });
+    } else {
+      S.inc.push({ id: uid(), date: r.date, amt: r.amt, kind: dec.v, who: rowTitle(r), key: r.key });
+      // cash that went into or came out of the bank changes the wallet too
+      if (dec.v === 'own' && r.date >= S.created && (r.type === 'deposit' || r.type === 'atm')) {
+        S.moves.push({ id: uid(), date: r.date, src: 'cash', amt: -r.amt, why: r.type });
+      }
+    }
+  }
+  function decide(r, dec, byUser) {
+    if (!r) return;
+    var k = ruleKey(r);
+    S.pending = S.pending.filter(function (x) { return x.key !== r.key; });
+    place(r, dec);
+    if (byUser) {
+      S.bricks += 1;
+      if (k) {
+        S.rules[k] = dec;
+        // the same shop or person elsewhere in the pile sorts itself
+        S.pending.filter(function (x) { return ruleKey(x) === k; }).forEach(function (x) {
+          S.pending = S.pending.filter(function (y) { return y.key !== x.key; });
+          place(x, dec);
+        });
+      }
+      save();
+      openSort();
+    }
+  }
+  function importPdf(file) {
+    if (!window.RKImport) { toast('Import is still loading. Try again in a moment.'); return; }
+    toast('Reading your statement…');
+    var fr = new FileReader();
+    fr.onerror = function () { toast('Could not open that file.'); };
+    fr.onload = function () {
+      window.RKImport.parse(fr.result).then(function (res) { finishImport(res); }).catch(function (e) {
+        toast(e && e.message === 'offline' ? 'You need internet the first time you import.' : 'Could not read this file. Is it the Alinma statement PDF?');
+      });
+    };
+    fr.readAsArrayBuffer(file);
+  }
+  function finishImport(res) {
+    var fresh = res.rows.filter(function (r) { return !S.seenBank[r.key]; });
+    var auto = 0;
+    toastEl.classList.remove('show');
+    fresh.forEach(function (r) {
+      S.seenBank[r.key] = 1;
+      // a card purchase you already logged by hand: keep yours, don't count it twice
+      var mine = r.amt < 0 && S.tx.filter(function (t) { return t.src === 'bank' && !t.bank && t.date === r.date && near(t.amt, -r.amt); })[0];
+      if (mine) { mine.bank = true; mine.key = r.key; auto++; return; }
+      var g = guess(r);
+      if (g) { place(r, g); auto++; } else S.pending.push(r);
+    });
+    // the statement's closing balance is the truth for the bank wallet
+    if (!S.lastBank || res.last >= S.lastBank) {
+      S.lastBank = res.last;
+      var manualAfter = S.tx.reduce(function (a, t) { return t.src === 'bank' && !t.bank && t.date > res.last ? a + t.amt : a; }, 0);
+      var movedAfter = S.moves.reduce(function (a, m) { return m.src === 'bank' && m.date > res.last ? a + m.amt : a; }, 0);
+      S.start.bank = res.closing - manualAfter + movedAfter + spentFrom('bank') - moved('bank');
+    }
+    var got = 0;
+    if (fresh.length) { got = 20 + checkin(); S.bricks += 20; }
+    save(); renderHome();
+    var ins = res.rows.filter(function (r) { return r.amt > 0; }).length;
+    sheet('Statement read ✓',
+      '<p class="keep" style="text-align:left">Found <b>' + res.rows.length + ' transactions</b> (' + ins + ' in, ' + (res.rows.length - ins) + ' out), ending ' + niceDate(res.last) +
+      ' with <b>' + money(res.closing) + ' SAR</b> in the bank. Check that against the first page of your statement.</p>' +
+      '<div class="how"><div><b>' + fresh.length + '</b>new</div><div><b>' + auto + '</b>sorted for you</div><div><b>' + S.pending.length + '</b>need you</div></div>' +
+      (res.unsure ? '<p class="keep" style="text-align:left">⚠️ ' + res.unsure + ' lines did not add up cleanly. Please double-check them.</p>' : '') +
+      (got ? '<p class="keep">+' + got + ' 🧱 for importing</p>' : '<p class="keep">Nothing new in this file. You’re up to date.</p>') +
+      (S.pending.length ? '<button class="primary" data-act="sort">Sort ' + S.pending.length + ' now</button><button class="ghost" data-act="close">Later</button>' : '<button class="primary" data-act="close">Done</button>'));
+  }
+  function bankCard() {
+    return '<div class="card list"><h3>Bank statement</h3>' +
+      (S.pending.length
+        ? '<button class="primary" style="margin-top:10px" data-act="sort">Sort ' + S.pending.length + ' bank transaction' + (S.pending.length > 1 ? 's' : '') + '</button>'
+        : '<div class="empty">' + (S.lastBank ? 'Imported up to ' + niceDate(S.lastBank) + '. ' : '') + 'Download your statement PDF from the Alinma app, then import it here once a week. Card purchases sort themselves.</div>') +
+      '<label class="ghost filebtn">Import Alinma statement (PDF)<input type="file" id="pdf-in" accept="application/pdf,.pdf" hidden></label>' +
+      '<div class="private" style="margin-top:8px">🔒 The file is read on this phone and never uploaded.</div></div>';
+  }
+  function openSort() {
+    var r = S.pending[0];
+    if (!r) { closeSheet(); renderHome(); toast('All sorted ✓'); return; }
+    var inn = r.amt > 0, body =
+      '<div class="amount" style="color:' + (inn ? 'var(--good)' : 'var(--ink)') + '">' + (inn ? '+' : '−') + money(Math.abs(r.amt)) + '<small>SAR</small></div>' +
+      '<p class="keep"><b>' + esc(rowTitle(r)) + '</b> · ' + niceDate(r.date) + '</p>' +
+      (r.who ? '' : '<p class="keep" dir="auto" style="font-size:12px">' + esc(r.arabic.slice(0, 110)) + '</p>') +
+      '<div class="step" style="margin-top:14px">' + (inn ? 'What is this money?' : 'What was it for?') + '</div>';
+    if (inn) {
+      body += ['salary', 'freelance', 'roommate', 'own', 'notmine'].map(function (k) { return '<button class="ghost pick" data-act="sortkind" data-v="' + k + '">' + KIND[k] + '</button>'; }).join('');
+    } else {
+      body += '<div class="cats">' + CATS.map(function (c) { return '<button class="cat" data-act="sortcat" data-v="' + c.id + '"><span class="e">' + c.e + '</span><span class="n">' + c.n + '</span></button>'; }).join('') + '</div>' +
+        ['notmine', 'own', 'goal'].map(function (k) { return '<button class="ghost pick" data-act="sortkind" data-v="' + k + '">' + KIND[k] + '</button>'; }).join('');
+    }
+    body += (ruleKey(r) ? '<p class="keep" style="font-size:12px">I’ll remember your answer for next time.</p>' : '') +
+      (S.pending.length > 1 ? '<button class="ghost" data-act="sortskip" style="border:0;color:var(--muted)">Skip this one for now</button>' : '');
+    sheet('Sort · ' + S.pending.length + ' left', body);
+  }
+
   function closeSheet() { sheetRoot.innerHTML = ''; draft = null; }
 
   /* ---------- events ---------- */
@@ -851,6 +998,10 @@
     if (act === 'dep') return openMove(el.dataset.id, true);
     if (act === 'wd') return openMove(el.dataset.id, false);
     if (act === 'movesave') return saveMove(el.dataset.id, el.dataset.dep === '1');
+    if (act === 'sort') return openSort();
+    if (act === 'sortcat') return decide(S.pending[0], { t: 'cat', v: el.dataset.v }, true);
+    if (act === 'sortkind') return decide(S.pending[0], { t: 'kind', v: el.dataset.v }, true);
+    if (act === 'sortskip') { S.pending.push(S.pending.shift()); save(); return openSort(); }
     if (act === 'iouadd') return openIouAdd();
     if (act === 'iousave') return saveIou();
     if (act === 'iou') return openIou(el.dataset.id);
@@ -889,6 +1040,10 @@
         el.textContent = 'Tap again to erase everything';
       }
     }
+  });
+
+  document.addEventListener('change', function (ev) {
+    if (ev.target.id === 'pdf-in' && ev.target.files && ev.target.files[0]) { importPdf(ev.target.files[0]); ev.target.value = ''; }
   });
 
   // refresh the number when the app is reopened on a new day

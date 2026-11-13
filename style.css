@@ -80,6 +80,9 @@ input { font: inherit; color: inherit; }
 .splitbtn.on { border-style: solid; border-color: var(--nile); background: #e3f1f1; color: var(--nile-dark); }
 .amount small { white-space: nowrap; }
 
+.filebtn { display: block; text-align: center; cursor: pointer; }
+.ghost.pick { text-align: left; padding: 12px 14px; margin-top: 8px; font-size: 15px; }
+
 /* ---------- cards ---------- */
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 18px; margin-top: 14px; }
 .label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; }
