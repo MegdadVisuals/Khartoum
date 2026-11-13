@@ -66,7 +66,21 @@
   function spentFrom(src) {
     return S.tx.reduce(function (a, t) { return t.src === src ? a + t.amt : a; }, 0);
   }
-  function bal(src) { return S.start[src] - spentFrom(src); }
+  // money moved in or out of a wallet that is not spending (envelope, debts, roommate)
+  function moved(src) {
+    return S.moves.reduce(function (a, m) { return m.src === src ? a + m.amt : a; }, 0);
+  }
+  function bal(src) { return S.start[src] - spentFrom(src) + moved(src); }
+  function ensure() {
+    if (!S.goals) S.goals = [];
+    if (!S.vault) S.vault = [];
+    if (!S.moves) S.moves = [];
+    if (!S.iou) S.iou = [];
+  }
+  function r2(n) { return Math.round(n * 100) / 100; }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function val(id) { var e = document.getElementById(id); return e ? e.value : ''; }
+  function radio(name) { var e = document.querySelector('input[name="' + name + '"]:checked'); return e ? e.value : ''; }
   function spentOn(day) {
     return S.tx.reduce(function (a, t) { return t.date === day ? a + t.amt : a; }, 0);
   }
@@ -261,8 +275,16 @@
       '<path d="M0 186c40-4 70 4 110 0s80 4 130 0 90 4 160 0" stroke="#fff" stroke-opacity=".18" stroke-width="2" fill="none"/>' +
       '<path d="M0 212c50-4 80 4 130 0s90 4 140 0 80 4 130 0" stroke="#fff" stroke-opacity=".12" stroke-width="2" fill="none"/>';
     // the broken bridge (rebuilt with a savings goal later)
-    h += R(0, 190, 58, 5, '#5f5558') + R(104, 190, 50, 5, '#5f5558') + R(18, 195, 6, 35, '#5f5558') + R(126, 195, 6, 35, '#5f5558') +
-      '<polygon points="58,190 76,203 74,207 58,195" fill="#5f5558"/>';
+    var bf = S ? frac('bridge') : 0, bc = bf >= 1 ? '#d9c7a3' : '#5f5558';
+    h += R(18, 195, 6, 35, '#5f5558') + R(126, 195, 6, 35, '#5f5558');
+    if (bf >= .67) {
+      h += R(0, 190, 154, 5, bc) + R(72, 195, 6, 35, '#5f5558');
+      if (bf >= 1) h += '<path d="M0 190c26-20 52-20 77 0c26-20 52-20 77 0" stroke="#d9c7a3" stroke-width="2.5" fill="none"/>' +
+        [20, 58, 96, 134].map(function (x) { return '<circle cx="' + x + '" cy="187" r="1.8" fill="#ffe08a"/>'; }).join('');
+    } else {
+      h += R(0, 190, bf >= .34 ? 82 : 58, 5, '#5f5558') + R(104, 190, 50, 5, '#5f5558');
+      if (bf < .34) h += '<polygon points="58,190 76,203 74,207 58,195" fill="#5f5558"/>';
+    }
     if (on(6)) h += g(6, boat(222, 200));
     if (on(16)) h += g(16, boat(335, 214));
     if (on(21)) h += g(21, [[120, 40], [142, 54], [250, 34]].map(function (q) {
@@ -316,7 +338,9 @@
     var later = STEPS.length - n - 1;
     sheetRoot.innerHTML = '<div class="scrim" data-act="close"><div class="sheet" data-stop="1">' +
       '<div class="top"><h2>Your city</h2><button class="x" data-act="close" aria-label="Close">✕</button></div>' +
-      '<p class="keep" style="text-align:left">You have <b>' + money(S.bricks) + ' bricks</b> and a <b>' + st.n + '-week streak</b>' +
+      '<div class="banner" style="margin-top:12px">' + cityMap(n) + '</div>' +
+      '<p class="keep">Khartoum from above, where the two Niles meet. Tap a landmark to open its goal.</p>' +
+      '<p class="keep" style="text-align:left;margin-top:14px">You have <b>' + money(S.bricks) + ' bricks</b> and a <b>' + st.n + '-week streak</b>' +
       (st.fz ? ', with ' + st.fz + ' freeze pass' + (st.fz > 1 ? 'es' : '') : '') + '.</p>' +
       '<div class="how"><div><b>+' + B_SHOW + '</b>showing up each day</div><div><b>+' + B_LOG + '</b>each purchase you log</div><div><b>+' + B_UNDER + '</b>each day under your number</div></div>' +
       '<p class="keep" style="text-align:left">🔥 Your streak counts weeks. Log a purchase or tap “Nothing to log today” at least once in a week and it grows. Every 4 weeks you earn a ❄️ freeze pass that protects it if you miss a week.</p>' +
@@ -382,7 +406,7 @@
       ? '<button class="nothing done" disabled>✓ You showed up today</button>'
       : '<button class="nothing" data-act="nothing">Nothing to log today</button>';
 
-    app.innerHTML = cityCard() + hero + stats + nothing + renderList() +
+    app.innerHTML = cityCard() + hero + stats + nothing + goalsCard() + iouCard() + renderList() +
       '<button class="fab" data-act="log"><i>+</i> Log a purchase</button>';
     if (won) toast((won === 1 ? 'You stayed under your number' : won + ' days under your number') + ': +' + won * B_UNDER + ' 🧱');
     celebrate();
@@ -417,7 +441,7 @@
   var draft = null;
 
   function openLog() {
-    draft = { amt: '', src: S.lastSrc || 'cash', note: '', needNote: false };
+    draft = { amt: '', src: S.lastSrc || 'cash', note: '', needNote: false, split: false };
     drawLog();
   }
   function drawLog() {
@@ -429,6 +453,8 @@
       '<button data-src="bank" class="' + (draft.src === 'bank' ? 'on' : '') + '">💳 Card</button></div>' +
       '<input class="note' + (draft.needNote ? ' need' : '') + '" id="note" maxlength="60" placeholder="' +
       (draft.needNote ? 'What was it? Then tap Other again' : 'Add a note (optional)') + '" value="' + esc(draft.note) + '">' +
+      '<button class="splitbtn' + (draft.split ? ' on' : '') + '" data-act="split">' + (draft.split ? '✓ ' : '') + '👥 I paid it all, split it in 2 with my roommate' +
+      (draft.split && has ? ' · my share ' + money(r2(num(draft.amt) / 2)) : '') + '</button>' +
       '<div class="step">' + (has ? 'Tap a category to save' : 'Type the amount') + '</div>' +
       '<div class="cats' + (has ? '' : ' off') + '">' +
       CATS.map(function (c) { return '<button class="cat" data-cat="' + c.id + '"><span class="e">' + c.e + '</span><span class="n">' + c.n + '</span></button>'; }).join('') +
@@ -460,7 +486,15 @@
     var note = draft.note.trim();
     if (catId === 'other' && !note) { draft.needNote = true; drawLog(); return; }
     var t = today();
-    var tx = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), date: t, ts: Date.now(), amt: amt, cat: catId, src: draft.src, note: note };
+    var tx = { id: uid(), date: t, ts: Date.now(), amt: amt, cat: catId, src: draft.src, note: note };
+    var extra = null;
+    if (draft.split) {
+      // only my half is my spending; the other half left my wallet and is owed back
+      var theirs = r2(amt / 2);
+      tx.amt = r2(amt - theirs);
+      extra = { move: { id: uid(), date: t, src: draft.src, amt: -theirs, why: 'split' }, iou: { id: uid(), date: t, who: 'Roommate', amt: theirs, dir: 'owed', note: note || CAT[catId].n } };
+      S.moves.push(extra.move); S.iou.push(extra.iou);
+    }
     S.tx.push(tx);
     S.lastSrc = draft.src;
     var got = B_LOG + checkin();
@@ -472,6 +506,10 @@
     var msg = 'Logged ✓ +' + got + ' 🧱' + (b.isPayday ? '' : (b.left >= 0 ? ' · ' + money(Math.floor(b.left)) + ' left today' : ' · tomorrow adjusts'));
     toast(msg, function () {
       S.tx = S.tx.filter(function (x) { return x.id !== tx.id; });
+      if (extra) {
+        S.moves = S.moves.filter(function (x) { return x.id !== extra.move.id; });
+        S.iou = S.iou.filter(function (x) { return x.id !== extra.iou.id; });
+      }
       S.bricks = Math.max(S.seen ? STEPS[S.seen - 1].at : 0, S.bricks - B_LOG);
       save(); renderHome();
     });
@@ -505,6 +543,274 @@
       '</div></div>';
   }
 
+  /* ---------- savings goals and the envelope ---------- */
+  var KINDS = {
+    bridge: { e: '🌉', n: 'Bridge', hint: 'e.g. Emergency fund' },
+    airport: { e: '✈️', n: 'Airport', hint: 'e.g. Visa or travel' },
+    library: { e: '📚', n: 'Public library', hint: 'e.g. Rent' },
+    garden: { e: '🌳', n: 'Nile garden', hint: 'Anything else' }
+  };
+  var B_PER_SAVED = 10; // 1 brick for every 10 SAR put in the envelope
+
+  function goalById(id) { return S.goals.filter(function (g) { return g.id === id; })[0]; }
+  function goalByKind(k) { return S.goals.filter(function (g) { return g.kind === k; })[0]; }
+  function saved(id) { return r2(S.vault.reduce(function (a, v) { return v.goal === id ? a + v.amt : a; }, 0)); }
+  function envelope() { return r2(S.vault.reduce(function (a, v) { return a + v.amt; }, 0)); }
+  // how far a landmark is built: uses the most ever saved, so borrowing never knocks it down
+  function frac(kind) {
+    var g = goalByKind(kind);
+    return g && g.target > 0 ? Math.min(1, (g.peak || 0) / g.target) : 0;
+  }
+  function borrowed(g) { return Math.max(0, r2((g.peak || 0) - saved(g.id) - (g.used || 0))); }
+  function sheet(title, body) {
+    sheetRoot.innerHTML = '<div class="scrim" data-act="close"><div class="sheet" data-stop="1">' +
+      '<div class="top"><h2>' + title + '</h2><button class="x" data-act="close" aria-label="Close">✕</button></div>' + body + '</div></div>';
+  }
+  function opts(name, list, picked) {
+    return '<div class="opts">' + list.map(function (o) {
+      return '<label><input type="radio" name="' + name + '" value="' + o[0] + '"' + (o[0] === picked ? ' checked' : '') + (o[2] ? ' disabled' : '') + '><span>' + o[1] + '</span></label>';
+    }).join('') + '</div>';
+  }
+
+  function goalsCard() {
+    var h = '<div class="card list"><div class="ghead"><h3>Savings goals</h3>' +
+      (S.goals.length ? '<span>✉️ ' + money(envelope()) + ' in the envelope</span>' : '') + '</div>';
+    if (!S.goals.length) {
+      h += '<div class="empty">Each goal rebuilds a landmark in Khartoum: the bridge, the airport, the public library.</div>';
+    }
+    S.goals.forEach(function (g) {
+      var s = saved(g.id), pct = g.target > 0 ? Math.min(100, (s / g.target) * 100) : 0;
+      h += '<button class="tx" data-act="goal" data-id="' + g.id + '"><span class="em">' + KINDS[g.kind].e + '</span>' +
+        '<span class="mid"><b>' + esc(g.name) + '</b><span class="bar thin" style="display:block"><i style="width:' + pct + '%"></i></span>' +
+        '<span>' + money(s) + ' of ' + money(g.target) + ' · ' + Math.floor(pct) + '%</span></span></button>';
+    });
+    if (S.goals.length < 4) h += '<button class="ghost" data-act="goaledit">+ Add a goal</button>';
+    return h + '</div>';
+  }
+
+  function openGoalEdit(id, kind) {
+    var g = id ? goalById(id) : null;
+    var taken = {};
+    S.goals.forEach(function (x) { if (!g || x.id !== g.id) taken[x.kind] = true; });
+    var pick = g ? g.kind : (kind && !taken[kind] ? kind : Object.keys(KINDS).filter(function (k) { return !taken[k]; })[0]);
+    sheet(g ? 'Edit goal' : 'New goal',
+      '<div class="field"><label>Which landmark does it rebuild?</label>' +
+      opts('gk', Object.keys(KINDS).map(function (k) { return [k, KINDS[k].e + ' ' + KINDS[k].n + (taken[k] ? ' (used)' : ''), taken[k]]; }), pick) + '</div>' +
+      '<div class="field"><label for="g-name">What are you saving for?</label><input id="g-name" maxlength="30" placeholder="' + KINDS[pick].hint + '" value="' + esc(g ? g.name : '') + '"></div>' +
+      '<div class="field"><label for="g-target">How much? (SAR)</label><input id="g-target" inputmode="decimal" placeholder="0" value="' + (g ? g.target : '') + '"></div>' +
+      '<div class="field"><label for="g-due">By when? (optional)</label><input id="g-due" type="date" value="' + (g && g.due ? g.due : '') + '"></div>' +
+      '<button class="primary" data-act="goalsave" data-id="' + (g ? g.id : '') + '">Save goal</button>' +
+      (g ? '<button class="ghost danger" data-act="goaldel" data-id="' + g.id + '">Delete this goal</button>' : ''));
+  }
+  function saveGoal(id) {
+    var name = val('g-name').trim(), target = num(val('g-target')), kind = radio('gk'), due = val('g-due');
+    if (!kind) { toast('Pick a landmark'); return; }
+    if (!name) { toast('Give the goal a name'); return; }
+    if (!(target > 0)) { toast('Type how much you need'); return; }
+    var g = id ? goalById(id) : null;
+    if (g) { g.name = name; g.target = target; g.kind = kind; g.due = due; }
+    else S.goals.push({ id: uid(), name: name, target: target, kind: kind, due: due, peak: 0, used: 0 });
+    save(); closeSheet(); renderHome(); toast('Goal saved ✓');
+  }
+
+  function openGoal(id) {
+    var g = goalById(id);
+    if (!g) return;
+    var s = saved(id), left = Math.max(0, r2(g.target - s)), pct = Math.min(100, (s / g.target) * 100), bor = borrowed(g);
+    var plan = '';
+    if (left > 0 && g.due && g.due > today()) {
+      var months = Math.max(1, Math.ceil(daysBetween(today(), g.due) / 30.4));
+      plan = '<p class="keep">About <b>' + money(Math.ceil(left / months)) + ' SAR a month</b> gets you there by ' +
+        parse(g.due).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) + '.</p>';
+    } else if (left <= 0) plan = '<p class="keep"><b>Goal reached 🎉</b> The ' + KINDS[g.kind].n.toLowerCase() + ' is fully rebuilt.</p>';
+    var hist = S.vault.filter(function (v) { return v.goal === id; }).slice(-6).reverse().map(function (v) {
+      return '<div class="jr"><span>' + (v.amt > 0 ? '➕' : '➖') + '</span>' + niceDate(v.date) +
+        (v.why === 'borrow' ? ' · borrowed' : v.why === 'used' ? ' · used for the goal' : '') + '<i>' + money(Math.abs(v.amt)) + '</i></div>';
+    }).join('');
+    sheet(KINDS[g.kind].e + ' ' + esc(g.name),
+      '<div class="amount">' + money(s) + '<small>of ' + money(g.target) + '</small></div>' +
+      '<div class="bar"><i style="width:' + pct + '%"></i></div>' + plan +
+      (bor > 0 ? '<p class="keep">You borrowed <b>' + money(bor) + '</b> from this goal. Put it back when you can. The ' + KINDS[g.kind].n.toLowerCase() + ' stays standing.</p>' : '') +
+      '<button class="primary" data-act="dep" data-id="' + id + '">✉️ Put money in the envelope</button>' +
+      (s > 0 ? '<button class="ghost" data-act="wd" data-id="' + id + '">Take money out</button>' : '') +
+      '<button class="ghost" data-act="goaledit" data-id="' + id + '">Edit goal</button>' + hist);
+  }
+  function openMove(id, dep) {
+    var g = goalById(id);
+    if (!g) return;
+    sheet((dep ? 'Add to ' : 'Take from ') + esc(g.name),
+      '<div class="field"><label for="m-amt">How much? (SAR)</label><input id="m-amt" inputmode="decimal" placeholder="0"></div>' +
+      (dep
+        ? '<div class="field"><label>Where is it coming from?</label>' + opts('m-src', [['cash', '💵 My cash (' + money(bal('cash')) + ')'], ['bank', '💳 My bank (' + money(bal('bank')) + ')']], 'cash') + '</div>'
+        : '<div class="field"><label>Why?</label>' + opts('m-why', [['used', '🎯 I’m using it for this goal'], ['borrow', '🤝 I need it for something else (goes back to my cash)']], 'used') + '</div>') +
+      '<button class="primary" data-act="movesave" data-id="' + id + '" data-dep="' + (dep ? 1 : 0) + '">' + (dep ? 'Put it in the envelope' : 'Take it out') + '</button>');
+  }
+  function saveMove(id, dep) {
+    var g = goalById(id), amt = r2(num(val('m-amt'))), t = today();
+    if (!g || !(amt > 0)) { toast('Type an amount'); return; }
+    if (dep) {
+      var src = radio('m-src') || 'cash', before = frac(g.kind);
+      if (amt > bal(src)) { toast('You only have ' + money(Math.max(0, bal(src))) + ' in your ' + (src === 'cash' ? 'cash' : 'bank') + '. Fix it in ⚙︎ if that’s wrong.'); return; }
+      S.vault.push({ id: uid(), date: t, goal: id, amt: amt });
+      S.moves.push({ id: uid(), date: t, src: src, amt: -amt, why: 'envelope' });
+      g.peak = Math.max(g.peak || 0, saved(id) + (g.used || 0));
+      var got = Math.floor(amt / B_PER_SAVED) + checkin();
+      S.bricks += Math.floor(amt / B_PER_SAVED);
+      save(); closeSheet(); renderHome();
+      if (!sheetRoot.innerHTML) toast(before < 1 && frac(g.kind) >= 1 ? '🎉 ' + g.name + ' is fully funded! +' + got + ' 🧱' : 'In the envelope ✓ +' + got + ' 🧱');
+    } else {
+      if (amt > saved(id)) { toast('There is only ' + money(saved(id)) + ' in this goal'); return; }
+      var why = radio('m-why') || 'used';
+      S.vault.push({ id: uid(), date: t, goal: id, amt: -amt, why: why });
+      if (why === 'borrow') S.moves.push({ id: uid(), date: t, src: 'cash', amt: amt, why: 'borrow' });
+      else g.used = r2((g.used || 0) + amt);
+      save(); closeSheet(); renderHome();
+      toast(why === 'borrow' ? 'Moved to your cash. Nothing in the city is lost.' : 'Used for ' + g.name + ' ✓');
+    }
+  }
+
+  /* ---------- debts and the roommate list ---------- */
+  function openIous() { return S.iou.filter(function (x) { return !x.done; }); }
+  function iouCard() {
+    var list = openIous();
+    var h = '<div class="card list"><h3>Debts & roommate</h3>';
+    if (!list.length) h += '<div class="empty">Nobody owes anybody right now.</div>';
+    list.forEach(function (x) {
+      h += '<button class="tx" data-act="iou" data-id="' + x.id + '"><span class="em">' + (x.dir === 'owe' ? '↗️' : '↙️') + '</span>' +
+        '<span class="mid"><b>' + esc(x.who) + '</b><span>' + (x.dir === 'owe' ? 'You owe' : 'Owes you') +
+        (x.note ? ' · ' + esc(x.note) : '') + (x.due ? ' · by ' + niceDate(x.due) : '') + '</span></span>' +
+        '<span class="amt">' + money(x.amt) + '</span></button>';
+    });
+    return h + '<button class="ghost" data-act="iouadd">+ Add a debt or IOU</button></div>';
+  }
+  function openIouAdd() {
+    sheet('Add a debt or IOU',
+      '<div class="field">' + opts('i-dir', [['owe', '↗️ I owe someone'], ['owed', '↙️ Someone owes me']], 'owe') + '</div>' +
+      '<div class="field"><label for="i-who">Who?</label><input id="i-who" maxlength="30" placeholder="Roommate"></div>' +
+      '<div class="field"><label for="i-amt">How much? (SAR)</label><input id="i-amt" inputmode="decimal" placeholder="0"></div>' +
+      '<div class="field"><label for="i-due">Due by (optional)</label><input id="i-due" type="date"></div>' +
+      '<div class="field"><label for="i-cat">If you owe it: what is it for?</label><select id="i-cat"><option value="">A loan (not spending)</option>' +
+      CATS.map(function (c) { return '<option value="' + c.id + '">My share of: ' + c.n + '</option>'; }).join('') + '</select>' +
+      '<div class="hint">Pick a category when a roommate paid a bill and you owe your half. It counts as your spending when you pay it.</div></div>' +
+      '<button class="primary" data-act="iousave">Save</button>');
+  }
+  function saveIou() {
+    var amt = r2(num(val('i-amt'))), dir = radio('i-dir') || 'owe';
+    if (!(amt > 0)) { toast('Type an amount'); return; }
+    S.iou.push({ id: uid(), date: today(), who: val('i-who').trim() || 'Roommate', amt: amt, dir: dir, due: val('i-due'), cat: dir === 'owe' ? val('i-cat') : '' });
+    save(); closeSheet(); renderHome(); toast('Saved ✓');
+  }
+  function openIou(id) {
+    var x = S.iou.filter(function (i) { return i.id === id; })[0];
+    if (!x) return;
+    var owe = x.dir === 'owe';
+    sheet(esc(x.who),
+      '<div class="amount">' + money(x.amt) + '<small>SAR</small></div>' +
+      '<p class="keep">' + (owe ? 'You owe this' : 'They owe you this') + (x.note ? ' · ' + esc(x.note) : '') + (x.due ? ' · by ' + niceDate(x.due) : '') + '</p>' +
+      '<button class="primary" data-act="iousettle" data-id="' + id + '" data-w="cash">' + (owe ? 'I paid it back in cash' : 'They paid me in cash') + '</button>' +
+      '<button class="ghost" data-act="iousettle" data-id="' + id + '" data-w="bank">' + (owe ? 'I paid it back by card or transfer' : 'They sent it to my bank') + '</button>' +
+      '<button class="ghost danger" data-act="ioudel" data-id="' + id + '">Remove without changing my money</button>');
+  }
+  function settleIou(id, src) {
+    var x = S.iou.filter(function (i) { return i.id === id; })[0], t = today();
+    if (!x) return;
+    if (x.dir === 'owed') S.moves.push({ id: uid(), date: t, src: src, amt: x.amt, why: 'paid back' });
+    else if (x.cat) { S.tx.push({ id: uid(), date: t, ts: Date.now(), amt: x.amt, cat: x.cat, src: src, note: 'My share, paid to ' + x.who }); S.bricks += B_LOG; }
+    else S.moves.push({ id: uid(), date: t, src: src, amt: -x.amt, why: 'debt' });
+    x.done = true;
+    checkin();
+    save(); closeSheet(); renderHome();
+    if (!sheetRoot.innerHTML) toast(x.dir === 'owe' ? 'Debt cleared ✓' : 'Paid back ✓');
+  }
+
+  /* ---------- Khartoum from above ---------- */
+  function cityMap(n) {
+    var p = n / STEPS.length, i;
+    function nileX(y) { return y <= 205 ? 175 - 25 * y / 205 : 150 - 55 * (y - 205) / 215; }
+    var BP = [[150, 205], [200, 180], [260, 190], [320, 160], [400, 150]];
+    function blueY(x) {
+      if (x <= 150) return 205;
+      for (var k = 1; k < BP.length; k++) if (x <= BP[k][0]) return BP[k - 1][1] + (BP[k][1] - BP[k - 1][1]) * (x - BP[k - 1][0]) / (BP[k][0] - BP[k - 1][0]);
+      return 150;
+    }
+    // city blocks on the three banks, rebuilt outward from where the rivers meet
+    var blocks = [];
+    for (var x = 12; x < 390; x += 21) for (var y = 12; y < 400; y += 21) {
+      var cx = x + 7.5, cy = y + 7.5, ok = false;
+      if (cx < nileX(cy) - 27) ok = !(cx < 100 && cy > 282 && cy < 352);               // Omdurman (minus the garden)
+      else if (cx > nileX(cy) + 27) {
+        if (cy < blueY(cx) - 25) ok = true;                                              // Bahri
+        else if (cy > blueY(cx) + 25) ok = !(cx > 284 && cy > 258) && !(cx > 176 && cx < 240 && cy > 234 && cy < 292); // Khartoum
+      }
+      if (ok) blocks.push([x, y, Math.pow(cx - 150, 2) + Math.pow(cy - 205, 2)]);
+    }
+    blocks.sort(function (a, b) { return a[2] - b[2]; });
+    var built = Math.round(blocks.length * p), roofs = ['#e8c98f', '#d9a66b', '#f0dcae', '#cf9a6a'];
+
+    var h = '<svg viewBox="0 0 400 412">' + R(0, 0, 400, 412, mix('#a39587', '#ecdcb6', p));
+    blocks.forEach(function (b, k) {
+      h += k < built
+        ? R(b[0], b[1], 15, 15, roofs[(b[0] * 3 + b[1] * 7) % 4], ' rx="3"') + ((b[0] + b[1]) % 5 === 0 ? '<circle cx="' + (b[0] + 16) + '" cy="' + (b[1] + 16) + '" r="3" fill="#5fa052"/>' : '')
+        : R(b[0] + 1, b[1] + 1, 13, 13, '#857a74', ' rx="1.5" opacity=".75"') + R(b[0] + 5, b[1] + 6, 5, 4, '#5d5452');
+    });
+    // the rivers: White Nile from the south, Blue Nile from the east, one Nile going north
+    var white = mix('#7f8b86', '#a5d3c2', p), blue = mix('#5b7079', '#2f8fa3', p), main = mix('#687a7c', '#55a9ae', p);
+    h += '<path d="M95 420L150 205" stroke="' + white + '" stroke-width="38" stroke-linecap="round" fill="none"/>' +
+      '<path d="M150 205L200 180L260 190L320 160L405 150" stroke="' + blue + '" stroke-width="28" stroke-linejoin="round" stroke-linecap="round" fill="none"/>' +
+      '<ellipse cx="197" cy="181" rx="34" ry="19" fill="' + blue + '"/>' +
+      '<path d="M150 205L176 -8" stroke="' + main + '" stroke-width="34" stroke-linecap="round" fill="none"/>' +
+      '<ellipse cx="197" cy="181" rx="21" ry="8.5" fill="' + mix('#8d8a78', '#9cc474', p) + '" transform="rotate(-10 197 181)"/>';
+    function label(x, y, s) { return '<text x="' + x + '" y="' + y + '" font-size="9" font-weight="700" letter-spacing="2" fill="#2a2118" fill-opacity=".45" text-anchor="middle">' + s + '</text>'; }
+    h += label(52, 108, 'OMDURMAN') + label(300, 60, 'BAHRI') + label(228, 398, 'KHARTOUM') +
+      '<text x="197" y="183.5" font-size="6" font-weight="700" letter-spacing="1" fill="#2a2118" fill-opacity=".5" text-anchor="middle">TUTI</text>';
+
+    function pill(x, y, kind) {
+      var g = goalByKind(kind), s = g ? (g.name.length > 14 ? g.name.slice(0, 13) + '…' : g.name) + ' ' + Math.floor(frac(kind) * 100) + '%' : '+ ' + KINDS[kind].n;
+      var w = s.length * 5.2 + 14;
+      return R(x - w / 2, y - 9, w, 14, g ? '#fffaf1' : '#2a2118', ' rx="7" opacity=".92"') +
+        '<text x="' + x + '" y="' + (y + 1.2) + '" font-size="8.5" font-weight="700" text-anchor="middle" fill="' + (g ? '#2a2118' : '#fff') + '">' + esc(s) + '</text>';
+    }
+    function mark(kind, hit, art, px, py) {
+      var g = goalByKind(kind);
+      return '<g data-act="' + (g ? 'goal' : 'goaledit') + '"' + (g ? ' data-id="' + g.id + '"' : ' data-kind="' + kind + '"') + ' style="cursor:pointer">' +
+        R(hit[0], hit[1], hit[2], hit[3], '#000', ' opacity="0"') + art + pill(px, py, kind) + '</g>';
+    }
+    // bridge over the Blue Nile: the deck grows from both banks
+    var f = frac('bridge'), L = 40, a = R(240, 164, 10, 6, '#5f5558') + R(240, 205, 10, 6, '#5f5558') +
+      '<rect x="241.5" y="168" width="7" height="' + L + '" fill="none" stroke="#fff" stroke-opacity=".6" stroke-dasharray="3 3"/>';
+    if (f > 0) a += R(240.5, 168, 9, L * f / 2, '#f6e7c3', ' stroke="#8a6a45" stroke-width=".8"') + R(240.5, 168 + L - L * f / 2, 9, L * f / 2, '#f6e7c3', ' stroke="#8a6a45" stroke-width=".8"');
+    if (f >= 1) for (i = 0; i < 5; i++) a += '<circle cx="245" cy="' + (172 + i * 8) + '" r="1.3" fill="#ffe08a"/>';
+    h += mark('bridge', [222, 140, 46, 80], a, 245, 151);
+    // airport
+    f = frac('airport');
+    a = R(290, 264, 100, 130, '#000', ' rx="8" opacity=".07"');
+    if (f < .25) a += R(356, 272, 14, 114, '#6b6163') + '<circle cx="363" cy="300" r="5" fill="#4a4144"/><circle cx="360" cy="342" r="4" fill="#4a4144"/><circle cx="366" cy="368" r="4.5" fill="#4a4144"/>';
+    else { a += R(356, 272, 14, 114, '#55595e'); for (i = 0; i < 8; i++) a += R(362.3, 279 + i * 14, 1.4, 7, '#fff'); }
+    if (f < .5) a += R(300, 300, 40, 24, '#857a74', ' rx="2"') + R(312, 308, 12, 8, '#5d5452');
+    else a += R(340, 309, 16, 5, '#55595e') + R(300, 300, 40, 24, '#f4f1ea', ' rx="3"') + R(300, 309, 40, 5, '#3d7ea6');
+    if (f >= .75) a += '<circle cx="328" cy="348" r="6.5" fill="#f4f1ea" stroke="#3d7ea6" stroke-width="2"/><circle cx="328" cy="348" r="2" fill="#3d7ea6"/>';
+    if (f >= 1) a += '<path d="M363 316l2 8 9 6v3l-9-3-1 7 3 3v2l-4-1-4 1v-2l3-3-1-7-9 3v-3l9-6z" fill="#fff" stroke="#3d7ea6" stroke-width=".7"/>';
+    h += mark('airport', [290, 264, 100, 130], a, 322, 284);
+    // public library
+    f = frac('library');
+    if (f < .25) a = '<rect x="188" y="246" width="40" height="32" fill="none" stroke="#fff" stroke-opacity=".6" stroke-dasharray="3 3"/><ellipse cx="200" cy="266" rx="8" ry="4" fill="#6f6462"/><ellipse cx="216" cy="258" rx="6" ry="3" fill="#6f6462"/>';
+    else {
+      a = R(188, 246, 40, 32, '#b9a184', ' stroke="#c79f68" stroke-width="3"');
+      if (f >= .5) a += R(188, 246, f >= .75 ? 40 : 20, 32, '#c4553b');
+      if (f >= .75) a += R(202, 256, 12, 12, '#86b35f');
+      if (f >= 1) a += '<circle cx="183" cy="250" r="4" fill="#5fa052"/><circle cx="183" cy="274" r="4" fill="#5fa052"/><circle cx="233" cy="262" r="4" fill="#5fa052"/><text x="208" y="265.5" font-size="8" text-anchor="middle">📚</text>';
+    }
+    h += mark('library', [180, 238, 56, 48], a, 208, 240);
+    // Nile garden (only shown once that goal exists)
+    if (goalByKind('garden')) {
+      f = frac('garden');
+      a = '<ellipse cx="60" cy="318" rx="36" ry="30" fill="#000" opacity=".07"/>';
+      for (i = 0; i < Math.round(f * 9); i++) a += '<circle cx="' + (38 + (i % 3) * 22) + '" cy="' + (298 + Math.floor(i / 3) * 20) + '" r="7" fill="#5fa052"/>';
+      h += mark('garden', [24, 286, 74, 64], a, 60, 290);
+    }
+    return h + '<rect width="400" height="412" fill="#5d5050" opacity="' + (0.18 * (1 - p)).toFixed(2) + '" pointer-events="none"/></svg>';
+  }
+
   function closeSheet() { sheetRoot.innerHTML = ''; draft = null; }
 
   /* ---------- events ---------- */
@@ -528,9 +834,30 @@
         v: 2, payday: pay, tx: [], checkins: {}, lastSrc: 'cash', bricks: 0, seen: 0, allow: {}, settled: {},
         start: { bank: num(document.getElementById('f-bank').value), cash: num(document.getElementById('f-cash').value) }
       };
+      ensure();
       checkin();
       save(); renderHome();
       return;
+    }
+    if (act === 'split') { draft.split = !draft.split; return drawLog(); }
+    if (act === 'goal') return openGoal(el.dataset.id);
+    if (act === 'goaledit') return openGoalEdit(el.dataset.id, el.dataset.kind);
+    if (act === 'goalsave') return saveGoal(el.dataset.id);
+    if (act === 'goaldel') {
+      if (!el.dataset.sure) { el.dataset.sure = '1'; el.textContent = 'Tap again to delete this goal'; return; }
+      S.goals = S.goals.filter(function (g) { return g.id !== el.dataset.id; });
+      save(); closeSheet(); renderHome(); return;
+    }
+    if (act === 'dep') return openMove(el.dataset.id, true);
+    if (act === 'wd') return openMove(el.dataset.id, false);
+    if (act === 'movesave') return saveMove(el.dataset.id, el.dataset.dep === '1');
+    if (act === 'iouadd') return openIouAdd();
+    if (act === 'iousave') return saveIou();
+    if (act === 'iou') return openIou(el.dataset.id);
+    if (act === 'iousettle') return settleIou(el.dataset.id, el.dataset.w);
+    if (act === 'ioudel') {
+      S.iou = S.iou.filter(function (x) { return x.id !== el.dataset.id; });
+      save(); closeSheet(); renderHome(); return;
     }
     if (act === 'log') return openLog();
     if (act === 'journal') return openJournal();
@@ -547,8 +874,8 @@
     if (act === 'savesettings') {
       var p = document.getElementById('s-pay').value;
       if (!p) { toast('Pick a payday'); return; }
-      S.start.bank = num(document.getElementById('s-bank').value) + spentFrom('bank');
-      S.start.cash = num(document.getElementById('s-cash').value) + spentFrom('cash');
+      S.start.bank = num(document.getElementById('s-bank').value) + spentFrom('bank') - moved('bank');
+      S.start.cash = num(document.getElementById('s-cash').value) + spentFrom('cash') - moved('cash');
       S.payday = p;
       save(); closeSheet(); renderHome(); toast('Saved ✓');
       return;
@@ -576,6 +903,7 @@
       S.bricks = B_LOG * S.tx.length + B_SHOW * Object.keys(S.checkins).length;
       S.seen = 0; S.allow = {}; S.settled = {}; S.v = 2;
     }
+    ensure();
     renderHome();
   } else { S = null; renderSetup(); }
 

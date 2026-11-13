@@ -1,5 +1,5 @@
 /* Offline support: try the network first (so updates arrive), fall back to the saved copy. */
-var CACHE = 'rk-v2';
+var CACHE = 'rk-v3';
 var FILES = ['./', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'];
 
 self.addEventListener('install', function (e) {
