@@ -43,6 +43,29 @@ input { font: inherit; color: inherit; }
   background: rgba(0,0,0,.28); color: #fff; font-size: 17px;
 }
 
+/* ---------- city progress ---------- */
+.pop { animation: pop .8s cubic-bezier(.3,1.5,.5,1) .4s both; transform-box: fill-box; transform-origin: 50% 100%; }
+@keyframes pop { from { opacity: 0; transform: scale(.4); } }
+.prog { display: block; width: 100%; text-align: left; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; margin-top: 10px; }
+.prow { display: flex; justify-content: space-between; align-items: center; font-size: 15px; }
+.chip { background: #fbe9cf; color: #8a5a12; font-weight: 700; font-size: 13px; padding: 4px 10px; border-radius: 20px; }
+.chip.dim { background: var(--line); color: var(--muted); }
+.bar.thin { height: 6px; margin: 9px 0 7px; }
+.bar.thin i { background: var(--sun); }
+.next { font-size: 13px; color: var(--muted); }
+.won { margin: 14px 0 4px; }
+.won div { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; padding: 6px 0; }
+.won span { font-size: 24px; }
+.keep { color: var(--muted); font-size: 14px; text-align: center; margin: 8px 0 0; }
+.how { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+.how div { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 6px; text-align: center; font-size: 12px; color: var(--muted); }
+.how b { display: block; font-size: 20px; color: var(--ink); }
+.jr { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 15px; }
+.jr span { font-size: 20px; }
+.jr i { margin-left: auto; font-style: normal; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.jr.done { color: var(--ink); } .jr.done i { color: var(--good); }
+.jr.next { color: var(--ink); font-weight: 700; } .jr.next i { color: #8a5a12; }
+
 /* ---------- cards ---------- */
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 18px; margin-top: 14px; }
 .label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; }
