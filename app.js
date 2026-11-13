@@ -115,28 +115,28 @@
 
   /* ---------- bricks, streak ---------- */
   var STEPS = [
-    { at: 10, e: '🧹', t: 'Rubble cleared from the riverbank' },
-    { at: 25, e: '💡', t: 'First street lamp lit' },
-    { at: 45, e: '🌴', t: 'A palm planted on the corniche' },
-    { at: 70, e: '🏠', t: 'First house repaired' },
-    { at: 100, e: '☕', t: 'The tea lady’s stall reopens' },
-    { at: 135, e: '💡', t: 'Second street lamp lit' },
-    { at: 175, e: '⛵', t: 'A fishing boat returns to the Nile' },
-    { at: 220, e: '🏠', t: 'Second house repaired' },
-    { at: 270, e: '👨‍👩‍👧', t: 'A family comes home' },
-    { at: 325, e: '🌴', t: 'Second palm planted' },
-    { at: 385, e: '🧺', t: 'A market stall opens' },
-    { at: 450, e: '🕌', t: 'The mosque and minaret rebuilt' },
-    { at: 520, e: '🌿', t: 'Grass returns to the riverbank' },
-    { at: 600, e: '🏫', t: 'The school reopens' },
-    { at: 690, e: '💡', t: 'The whole street is lit' },
-    { at: 790, e: '🏢', t: 'An apartment block repaired' },
-    { at: 900, e: '⛵', t: 'A second boat on the water' },
-    { at: 1020, e: '🧑‍🤝‍🧑', t: 'More neighbours return' },
-    { at: 1150, e: '🏪', t: 'The corner shop reopens' },
-    { at: 1300, e: '🌴', t: 'Third palm planted' },
-    { at: 1460, e: '🏢', t: 'The tall building restored' },
-    { at: 1640, e: '🕊️', t: 'Birds return over the Nile' }
+    { at: 10, e: '🌿', t: 'Tuti Island’s farms turn green' },
+    { at: 25, e: '🏙️', t: 'Lights return to Al-Mogran' },
+    { at: 45, e: '🏬', t: 'Downtown and Souq al-Arabi rebuilt' },
+    { at: 70, e: '🛣️', t: 'Nile Street is lit again' },
+    { at: 100, e: '🏘️', t: 'Al-Mulazimin rebuilt in Omdurman' },
+    { at: 135, e: '⛵', t: 'Boats return to the Nile' },
+    { at: 175, e: '🏘️', t: 'Abu Rof rebuilt' },
+    { at: 220, e: '🏘️', t: 'Burri rebuilt' },
+    { at: 270, e: '🧺', t: 'Souq Omdurman reopens' },
+    { at: 325, e: '🏘️', t: 'Khartoum 2 rebuilt' },
+    { at: 385, e: '🌴', t: 'Shambat rebuilt in Bahri' },
+    { at: 450, e: '🏘️', t: 'Al-Amarat rebuilt' },
+    { at: 520, e: '🏘️', t: 'Wad Nubawi rebuilt' },
+    { at: 600, e: '🏘️', t: 'Kober rebuilt' },
+    { at: 690, e: '🏘️', t: 'Riyadh rebuilt' },
+    { at: 790, e: '🏘️', t: 'Al-Thawra rebuilt' },
+    { at: 900, e: '🏘️', t: 'Kafouri rebuilt' },
+    { at: 1020, e: '🏘️', t: 'Al-Sahafa rebuilt' },
+    { at: 1150, e: '🏘️', t: 'Umbadda rebuilt' },
+    { at: 1300, e: '🏘️', t: 'Halfaya rebuilt' },
+    { at: 1460, e: '🏘️', t: 'Jabra rebuilt' },
+    { at: 1640, e: '✨', t: 'The whole city shines again' }
   ];
   var B_SHOW = 10, B_LOG = 5, B_UNDER = 20;
 
@@ -178,128 +178,35 @@
     return { n: n, fz: fz, thisWeek: !!has[cur] };
   }
 
-  /* ---------- the city ---------- */
-  function mix(a, b, t) {
-    var out = [1, 3, 5].map(function (i) {
-      var x = parseInt(a.substr(i, 2), 16), y = parseInt(b.substr(i, 2), 16);
-      return Math.round(x + (y - x) * t);
-    });
-    return 'rgb(' + out.join(',') + ')';
-  }
-  function R(x, y, w, h, fill, extra) {
-    return '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + fill + '"' + (extra || '') + '/>';
-  }
-  function ruin(x, w, h) {
-    var pts = [[0, 0], [0, .6], [.2, .78], [.35, .5], [.55, .82], [.75, .55], [1, .72], [1, 0]].map(function (q) {
-      return (x + q[0] * w).toFixed(1) + ',' + (150 - q[1] * h).toFixed(1);
-    }).join(' ');
-    return '<polygon points="' + pts + '" fill="#7a6c68"/>' +
-      R(x + w * .2, 150 - h * .35, w * .18, h * .2, '#4a4144') + R(x + w * .6, 150 - h * .38, w * .18, h * .2, '#4a4144');
-  }
-  function house(x, w, h, door) {
-    return R(x, 150 - h, w, h, '#efd6a6') + R(x - 2, 150 - h - 3, w + 4, 4, '#c79f68') +
-      R(x + w * .4, 150 - h * .55, w * .2, h * .55, door) +
-      R(x + w * .1, 150 - h * .72, w * .2, h * .25, '#ffe7a0', ' stroke="#b98d55"') +
-      R(x + w * .7, 150 - h * .72, w * .2, h * .25, '#ffe7a0', ' stroke="#b98d55"');
-  }
-  function tall(x, w, h) {
-    var s = R(x, 150 - h, w, h, '#e6d2b0') + R(x - 1.5, 150 - h - 3, w + 3, 4, '#bfa67c');
-    for (var y = 150 - h + 8, r = 0; y < 138; y += 12, r++) {
-      s += R(x + w * .16, y, w * .26, 6, r % 2 ? '#8fb6c9' : '#ffe7a0') + R(x + w * .58, y, w * .26, 6, r % 2 ? '#ffe7a0' : '#8fb6c9');
-    }
-    return s;
-  }
-  function lamp(x, lit) {
-    return lit
-      ? '<line x1="' + x + '" y1="150" x2="' + x + '" y2="126" stroke="#4a4144" stroke-width="2"/><circle cx="' + x + '" cy="124" r="9" fill="#ffe08a" opacity=".35"/><circle cx="' + x + '" cy="124" r="3.5" fill="#ffe08a"/>'
-      : '<line x1="' + x + '" y1="150" x2="' + (x + 7) + '" y2="133" stroke="#5b5154" stroke-width="2"/>';
-  }
-  function palm(x) {
-    var tx = x - 1, ty = 141, f = ['q-10-8-18 2', 'q10-8 18 2', 'q-6-12-14-9', 'q6-12 14-9', 'q0-10 2-14'];
-    return '<path d="M' + x + ' 171q3-16-1-30" stroke="#8a6a45" stroke-width="3.5" fill="none" stroke-linecap="round"/>' +
-      f.map(function (q) { return '<path d="M' + tx + ' ' + ty + q + '" stroke="#3f8f4f" stroke-width="3" fill="none" stroke-linecap="round"/>'; }).join('');
-  }
-  function person(x, c, k) {
-    k = k || 1;
-    return '<path d="M' + (x - 3 * k) + ' 173l' + 3 * k + ' ' + -10 * k + 'l' + 3 * k + ' ' + 10 * k + 'z" fill="' + c + '"/><circle cx="' + x + '" cy="' + (173 - 12 * k) + '" r="' + 2.4 * k + '" fill="#5a3b2a"/>';
-  }
-  function boat(x, y) {
-    return '<path d="M' + (x - 14) + ' ' + y + 'h28l-5 6h-18z" fill="#6b4a2f"/><line x1="' + x + '" y1="' + y + '" x2="' + x + '" y2="' + (y - 22) + '" stroke="#4a3a2a" stroke-width="1.5"/>' +
-      '<path d="M' + (x + 1) + ' ' + (y - 21) + 'l12 17h-12z" fill="#fff7e6"/>';
-  }
-
-  // n = how many steps are rebuilt; steps from index `from` up to n appear with a pop
+  /* ---------- the city (painted by art.js) ---------- */
+  var stripX = null;
   function city(n, from) {
-    if (from === undefined) from = n;
-    if (window.RKArt) return window.RKArt.street({ n: n, from: from, total: STEPS.length, bridge: S ? frac('bridge') : 0 });
-    var p = n / STEPS.length, id = 'sky' + n + '_' + from;
-    function on(i) { return i < n; }
-    function g(i, s) { return '<g' + (i >= from && i < n ? ' class="pop"' : '') + '>' + s + '</g>'; }
-    function swap(i, built, broken) { return on(i) ? g(i, built) : (broken || ''); }
-
-    var h = '<svg viewBox="0 0 400 230" aria-hidden="true"><defs><linearGradient id="' + id + '" x1="0" y1="0" x2="0" y2="1">' +
-      '<stop offset="0" stop-color="' + mix('#4a4654', '#58a6d8', p) + '"/><stop offset="1" stop-color="' + mix('#c4906a', '#ffe6b0', p) + '"/></linearGradient></defs>' +
-      '<rect width="400" height="150" fill="url(#' + id + ')"/>' +
-      '<circle cx="318" cy="' + (128 - 52 * p).toFixed(0) + '" r="22" fill="' + mix('#e9b377', '#ffe08a', p) + '"/>' +
-      '<path d="M0 150V124l14-6v-10h12v14l10 4v-18l8-5 9 7v16h16v-12h10v-9l7 4v17h18v-22l12-4v-12h9v38h14v-14h12v14h20v-26l10 5v-13h12v34h16v-16l9-5v21h20v-30h8v-7h9v37h16v-12h14v12h18v-20l11 6v14H400v26z" fill="' + mix('#6e6064', '#a9bcc6', p) + '" opacity=".75"/>';
-
-    // ground
-    h += R(0, 150, 400, 28, mix('#a8937a', '#dcc394', p));
-    // buildings
-    h += swap(3, house(20, 46, 36, '#2f7f9f'), ruin(18, 50, 30));
-    h += swap(11, R(82, 128, 26, 22, '#f3e6c8') + '<path d="M84 128a11 11 0 0 1 22 0z" fill="#2e8b84"/>' + R(108, 96, 6, 54, '#f3e6c8') +
-      '<path d="M107 96h8l-4-9z" fill="#2e8b84"/><circle cx="111" cy="84" r="2" fill="#e8a23a"/>' + R(92, 138, 6, 12, '#7a5a3a'), ruin(80, 34, 22));
-    h += swap(7, house(122, 42, 32, '#3f8f5a'), ruin(120, 46, 27));
-    h += swap(15, tall(176, 34, 76), ruin(174, 38, 58));
-    h += swap(13, R(222, 116, 58, 34, '#f0dcae') + R(220, 113, 62, 5, '#3d7ea6') +
-      [0, 1, 2, 3].map(function (i) { return R(228 + i * 13, 125, 8, 9, '#bfe0ee'); }).join('') + R(246, 137, 9, 13, '#7a5a3a') +
-      '<line x1="274" y1="113" x2="274" y2="92" stroke="#4a4144" stroke-width="1.5"/>' + R(274, 92, 14, 3, '#d21034') + R(274, 95, 14, 3, '#ffffff') + R(274, 98, 14, 3, '#1c1c1c') +
-      '<polygon points="274,92 279.5,96.5 274,101" fill="#007229"/>', ruin(220, 62, 28));
-    h += swap(20, tall(290, 32, 92), ruin(288, 36, 66));
-    h += swap(18, house(332, 54, 34, '#b8623f') + R(330, 126, 58, 5, '#c4553b'), ruin(330, 58, 28));
-    // lamps
-    h += on(1) ? g(1, lamp(72, true)) : lamp(72, false);
-    h += on(5) ? g(5, lamp(170, true)) : lamp(170, false);
-    h += on(14) ? g(14, lamp(286, true) + lamp(388, true)) : lamp(286, false) + lamp(388, false);
-    // riverbank
-    if (on(12)) h += g(12, '<path d="M0 178v-9c40-4 70 3 110 0s80 3 130 0 90 3 160 0v9z" fill="#86b35f"/>');
-    if (!on(0)) h += [[40, 170, 13], [135, 172, 10], [240, 169, 14], [355, 171, 11], [300, 173, 7], [95, 173, 6]].map(function (q) {
-      return '<ellipse cx="' + q[0] + '" cy="' + q[1] + '" rx="' + q[2] + '" ry="' + (q[2] * .42).toFixed(1) + '" fill="#6f6462"/>';
-    }).join('');
-    if (on(2)) h += g(2, palm(108));
-    if (on(9)) h += g(9, palm(214));
-    if (on(19)) h += g(19, palm(322));
-    if (on(4)) h += g(4, '<path d="M134 159a12 9 0 0 1 24 0z" fill="#c4553b"/><line x1="146" y1="159" x2="146" y2="173" stroke="#4a4144" stroke-width="1.5"/>' +
-      R(150, 166, 11, 2, '#8a6a45') + R(151, 168, 1.5, 5, '#8a6a45') + R(158.5, 168, 1.5, 5, '#8a6a45') + '<circle cx="155" cy="164" r="2" fill="#555"/>' + person(140, '#e85d9a'));
-    if (on(10)) h += g(10, R(244, 156, 1.5, 17, '#4a4144') + R(270.5, 156, 1.5, 17, '#4a4144') +
-      [0, 1, 2, 3, 4].map(function (i) { return R(243 + i * 6, 153, 6, 5, i % 2 ? '#fff7e6' : '#c4553b'); }).join('') +
-      R(247, 166, 22, 7, '#8a6a45') + '<circle cx="251" cy="165" r="2.2" fill="#e8a23a"/><circle cx="256" cy="165" r="2.2" fill="#3f8f4f"/><circle cx="261" cy="165" r="2.2" fill="#c4553b"/><circle cx="266" cy="165" r="2.2" fill="#e8a23a"/>');
-    if (on(8)) h += g(8, person(40, '#2f6f9f') + person(47, '#d4783a') + person(53, '#8a4fa3', .7));
-    if (on(17)) h += g(17, person(196, '#3f8f5a') + person(203, '#e8a23a') + person(302, '#2f6f9f') + person(350, '#e85d9a') + person(357, '#d4783a', .7));
-    // the Nile, where the two rivers meet
-    h += R(0, 178, 400, 52, mix('#4f6b73', '#2f8fa3', p)) +
-      '<path d="M400 178H215c30 14 70 36 95 52h90z" fill="' + mix('#66776c', '#7fc0a8', p) + '" opacity=".55"/>' +
-      '<path d="M0 186c40-4 70 4 110 0s80 4 130 0 90 4 160 0" stroke="#fff" stroke-opacity=".18" stroke-width="2" fill="none"/>' +
-      '<path d="M0 212c50-4 80 4 130 0s90 4 140 0 80 4 130 0" stroke="#fff" stroke-opacity=".12" stroke-width="2" fill="none"/>';
-    // the broken bridge (rebuilt with a savings goal later)
-    var bf = S ? frac('bridge') : 0, bc = bf >= 1 ? '#d9c7a3' : '#5f5558';
-    h += R(18, 195, 6, 35, '#5f5558') + R(126, 195, 6, 35, '#5f5558');
-    if (bf >= .67) {
-      h += R(0, 190, 154, 5, bc) + R(72, 195, 6, 35, '#5f5558');
-      if (bf >= 1) h += '<path d="M0 190c26-20 52-20 77 0c26-20 52-20 77 0" stroke="#d9c7a3" stroke-width="2.5" fill="none"/>' +
-        [20, 58, 96, 134].map(function (x) { return '<circle cx="' + x + '" cy="187" r="1.8" fill="#ffe08a"/>'; }).join('');
-    } else {
-      h += R(0, 190, bf >= .34 ? 82 : 58, 5, '#5f5558') + R(104, 190, 50, 5, '#5f5558');
-      if (bf < .34) h += '<polygon points="58,190 76,203 74,207 58,195" fill="#5f5558"/>';
+    return '<div class="strip"><canvas data-city="strip" data-n="' + n + '" data-from="' + (from === undefined ? n : from) + '"></canvas></div>' +
+      '<div class="swipe">‹ swipe to look around ›</div>';
+  }
+  function cityMap(n, from) {
+    return '<canvas data-city="map" data-n="' + n + '" data-from="' + (from === undefined ? n : from) + '"></canvas>';
+  }
+  function paintAll() {
+    if (!window.RKArt) return;
+    var gs = null;
+    if (S) {
+      gs = {};
+      Object.keys(KINDS).forEach(function (k) {
+        var gl = goalByKind(k);
+        gs[k] = gl ? { id: gl.id, name: gl.name.length > 14 ? gl.name.slice(0, 13) + '…' : gl.name, f: frac(k) } : null;
+      });
     }
-    if (on(6)) h += g(6, boat(222, 200));
-    if (on(16)) h += g(16, boat(335, 214));
-    if (on(21)) h += g(21, [[120, 40], [142, 54], [250, 34]].map(function (q) {
-      return '<path d="M' + q[0] + ' ' + q[1] + 'q4-4 8 0q4-4 8 0" stroke="#3b3340" stroke-width="1.6" fill="none" stroke-linecap="round"/>';
-    }).join(''));
-    // smoke haze that lifts as the city comes back
-    h += '<rect width="400" height="230" fill="#5d5050" opacity="' + (0.22 * (1 - p)).toFixed(2) + '"/>';
-    return h + '</svg>';
+    Array.prototype.forEach.call(document.querySelectorAll('canvas[data-city]'), function (cv) {
+      if (cv._done) return;
+      cv._done = true;
+      var r = window.RKArt.paint(cv, { cam: cv.dataset.city, n: +cv.dataset.n, from: +cv.dataset.from, goals: gs });
+      if (cv.dataset.city === 'strip') {
+        var sc = cv.parentNode;
+        sc.scrollLeft = stripX === null ? r.focusX - sc.clientWidth / 2 : stripX;
+        sc.onscroll = function () { stripX = sc.scrollLeft; };
+      }
+    });
   }
 
   function banner(caption, right) {
@@ -329,7 +236,7 @@
     S.seen = n; save();
     sheetRoot.innerHTML = '<div class="scrim" data-act="close"><div class="sheet" data-stop="1">' +
       '<div class="top"><h2>🔨 Rebuilt!</h2><button class="x" data-act="close" aria-label="Close">✕</button></div>' +
-      '<div class="banner" style="margin-top:12px">' + city(n, from) + '</div>' +
+      '<div class="banner" style="margin-top:12px">' + cityMap(n, from) + '</div>' +
       '<div class="won">' + list.map(function (s) { return '<div><span>' + s.e + '</span>' + esc(s.t) + '</div>'; }).join('') + '</div>' +
       '<p class="keep">Nothing you rebuild is ever lost.</p>' +
       '<button class="primary" data-act="close">Keep building</button></div></div>';
@@ -346,7 +253,7 @@
     sheetRoot.innerHTML = '<div class="scrim" data-act="close"><div class="sheet" data-stop="1">' +
       '<div class="top"><h2>Your city</h2><button class="x" data-act="close" aria-label="Close">✕</button></div>' +
       '<div class="banner" style="margin-top:12px">' + cityMap(n) + '</div>' +
-      '<p class="keep">Khartoum from above, where the two Niles meet. Tap a landmark to open its goal.</p>' +
+      '<p class="keep">The whole of Khartoum, where the two Niles meet. Each district lights up as you rebuild it. Tap a landmark to open its goal.</p>' +
       '<p class="keep" style="text-align:left;margin-top:14px">You have <b>' + money(S.bricks) + ' bricks</b> and a <b>' + st.n + '-week streak</b>' +
       (st.fz ? ', with ' + st.fz + ' freeze pass' + (st.fz > 1 ? 'es' : '') : '') + '.</p>' +
       '<div class="how"><div><b>+' + B_SHOW + '</b>showing up each day</div><div><b>+' + B_LOG + '</b>each purchase you log</div><div><b>+' + B_UNDER + '</b>each day under your number</div></div>' +
@@ -387,8 +294,9 @@
     var hero;
     if (b.isPayday) {
       hero = '<div class="card hero"><div class="label">Payday</div>' +
-        '<div class="num" style="font-size:44px;letter-spacing:-1px">You made it 🎉</div>' +
-        '<div class="sub">The payday ritual arrives in an upcoming update. For now, open ⚙︎ to enter your new amounts and next payday.</div></div>';
+        '<div class="num" style="font-size:40px;letter-spacing:-1px">You made it 🌅</div>' +
+        '<div class="sub">A new month begins in Khartoum. Split your salary, set your budgets and start construction.</div>' +
+        '<button class="primary" data-act="rit" data-do="open">Start the payday ritual</button></div>';
     } else {
       var tom = '';
       if (b.tomorrow !== null) {
@@ -413,10 +321,11 @@
       ? '<button class="nothing done" disabled>✓ You showed up today</button>'
       : '<button class="nothing" data-act="nothing">Nothing to log today</button>';
 
-    app.innerHTML = cityCard() + hero + stats + nothing + goalsCard() + iouCard() + bankCard() + renderList() +
+    app.innerHTML = cityCard() + hero + stats + nothing + budgetsCard() + goalsCard() + iouCard() + bankCard() + renderList() +
       '<button class="fab" data-act="log"><i>+</i> Log a purchase</button>';
     if (won) toast((won === 1 ? 'You stayed under your number' : won + ' days under your number') + ': +' + won * B_UNDER + ' 🧱');
     celebrate();
+    paintAll();
   }
 
   function renderList() {
@@ -545,6 +454,7 @@
       '<div class="field"><label for="s-cash">Cash in your wallet</label><input id="s-cash" inputmode="decimal" value="' + money(bal('cash')).replace(/,/g, '') + '"></div>' +
       '<div class="field"><label for="s-pay">Next payday</label><input id="s-pay" type="date" value="' + S.payday + '"></div>' +
       '<button class="primary" data-act="savesettings">Save</button>' +
+      '<button class="ghost" data-act="rit" data-do="open">🌅 Start the payday ritual now</button>' +
       '<button class="ghost danger" data-act="reset">Erase everything and start over</button>' +
       '<div class="private">🔒 Everything stays on this phone.</div>' +
       '</div></div>';
@@ -730,102 +640,6 @@
     if (!sheetRoot.innerHTML) toast(x.dir === 'owe' ? 'Debt cleared ✓' : 'Paid back ✓');
   }
 
-  /* ---------- Khartoum from above ---------- */
-  function cityMap(n) {
-    if (window.RKArt) {
-      var gs = {};
-      Object.keys(KINDS).forEach(function (k) {
-        var gl = goalByKind(k);
-        gs[k] = gl ? { id: gl.id, name: esc(gl.name.length > 14 ? gl.name.slice(0, 13) + '…' : gl.name), f: frac(k) } : null;
-      });
-      return window.RKArt.map({ n: n, total: STEPS.length, goals: gs });
-    }
-    var p = n / STEPS.length, i;
-    function nileX(y) { return y <= 205 ? 175 - 25 * y / 205 : 150 - 55 * (y - 205) / 215; }
-    var BP = [[150, 205], [200, 180], [260, 190], [320, 160], [400, 150]];
-    function blueY(x) {
-      if (x <= 150) return 205;
-      for (var k = 1; k < BP.length; k++) if (x <= BP[k][0]) return BP[k - 1][1] + (BP[k][1] - BP[k - 1][1]) * (x - BP[k - 1][0]) / (BP[k][0] - BP[k - 1][0]);
-      return 150;
-    }
-    // city blocks on the three banks, rebuilt outward from where the rivers meet
-    var blocks = [];
-    for (var x = 12; x < 390; x += 21) for (var y = 12; y < 400; y += 21) {
-      var cx = x + 7.5, cy = y + 7.5, ok = false;
-      if (cx < nileX(cy) - 27) ok = !(cx < 100 && cy > 282 && cy < 352);               // Omdurman (minus the garden)
-      else if (cx > nileX(cy) + 27) {
-        if (cy < blueY(cx) - 25) ok = true;                                              // Bahri
-        else if (cy > blueY(cx) + 25) ok = !(cx > 284 && cy > 258) && !(cx > 176 && cx < 240 && cy > 234 && cy < 292); // Khartoum
-      }
-      if (ok) blocks.push([x, y, Math.pow(cx - 150, 2) + Math.pow(cy - 205, 2)]);
-    }
-    blocks.sort(function (a, b) { return a[2] - b[2]; });
-    var built = Math.round(blocks.length * p), roofs = ['#e8c98f', '#d9a66b', '#f0dcae', '#cf9a6a'];
-
-    var h = '<svg viewBox="0 0 400 412">' + R(0, 0, 400, 412, mix('#a39587', '#ecdcb6', p));
-    blocks.forEach(function (b, k) {
-      h += k < built
-        ? R(b[0], b[1], 15, 15, roofs[(b[0] * 3 + b[1] * 7) % 4], ' rx="3"') + ((b[0] + b[1]) % 5 === 0 ? '<circle cx="' + (b[0] + 16) + '" cy="' + (b[1] + 16) + '" r="3" fill="#5fa052"/>' : '')
-        : R(b[0] + 1, b[1] + 1, 13, 13, '#857a74', ' rx="1.5" opacity=".75"') + R(b[0] + 5, b[1] + 6, 5, 4, '#5d5452');
-    });
-    // the rivers: White Nile from the south, Blue Nile from the east, one Nile going north
-    var white = mix('#7f8b86', '#a5d3c2', p), blue = mix('#5b7079', '#2f8fa3', p), main = mix('#687a7c', '#55a9ae', p);
-    h += '<path d="M95 420L150 205" stroke="' + white + '" stroke-width="38" stroke-linecap="round" fill="none"/>' +
-      '<path d="M150 205L200 180L260 190L320 160L405 150" stroke="' + blue + '" stroke-width="28" stroke-linejoin="round" stroke-linecap="round" fill="none"/>' +
-      '<ellipse cx="197" cy="181" rx="34" ry="19" fill="' + blue + '"/>' +
-      '<path d="M150 205L176 -8" stroke="' + main + '" stroke-width="34" stroke-linecap="round" fill="none"/>' +
-      '<ellipse cx="197" cy="181" rx="21" ry="8.5" fill="' + mix('#8d8a78', '#9cc474', p) + '" transform="rotate(-10 197 181)"/>';
-    function label(x, y, s) { return '<text x="' + x + '" y="' + y + '" font-size="9" font-weight="700" letter-spacing="2" fill="#2a2118" fill-opacity=".45" text-anchor="middle">' + s + '</text>'; }
-    h += label(52, 108, 'OMDURMAN') + label(300, 60, 'BAHRI') + label(228, 398, 'KHARTOUM') +
-      '<text x="197" y="183.5" font-size="6" font-weight="700" letter-spacing="1" fill="#2a2118" fill-opacity=".5" text-anchor="middle">TUTI</text>';
-
-    function pill(x, y, kind) {
-      var g = goalByKind(kind), s = g ? (g.name.length > 14 ? g.name.slice(0, 13) + '…' : g.name) + ' ' + Math.floor(frac(kind) * 100) + '%' : '+ ' + KINDS[kind].n;
-      var w = s.length * 5.2 + 14;
-      return R(x - w / 2, y - 9, w, 14, g ? '#fffaf1' : '#2a2118', ' rx="7" opacity=".92"') +
-        '<text x="' + x + '" y="' + (y + 1.2) + '" font-size="8.5" font-weight="700" text-anchor="middle" fill="' + (g ? '#2a2118' : '#fff') + '">' + esc(s) + '</text>';
-    }
-    function mark(kind, hit, art, px, py) {
-      var g = goalByKind(kind);
-      return '<g data-act="' + (g ? 'goal' : 'goaledit') + '"' + (g ? ' data-id="' + g.id + '"' : ' data-kind="' + kind + '"') + ' style="cursor:pointer">' +
-        R(hit[0], hit[1], hit[2], hit[3], '#000', ' opacity="0"') + art + pill(px, py, kind) + '</g>';
-    }
-    // bridge over the Blue Nile: the deck grows from both banks
-    var f = frac('bridge'), L = 40, a = R(240, 164, 10, 6, '#5f5558') + R(240, 205, 10, 6, '#5f5558') +
-      '<rect x="241.5" y="168" width="7" height="' + L + '" fill="none" stroke="#fff" stroke-opacity=".6" stroke-dasharray="3 3"/>';
-    if (f > 0) a += R(240.5, 168, 9, L * f / 2, '#f6e7c3', ' stroke="#8a6a45" stroke-width=".8"') + R(240.5, 168 + L - L * f / 2, 9, L * f / 2, '#f6e7c3', ' stroke="#8a6a45" stroke-width=".8"');
-    if (f >= 1) for (i = 0; i < 5; i++) a += '<circle cx="245" cy="' + (172 + i * 8) + '" r="1.3" fill="#ffe08a"/>';
-    h += mark('bridge', [222, 140, 46, 80], a, 245, 151);
-    // airport
-    f = frac('airport');
-    a = R(290, 264, 100, 130, '#000', ' rx="8" opacity=".07"');
-    if (f < .25) a += R(356, 272, 14, 114, '#6b6163') + '<circle cx="363" cy="300" r="5" fill="#4a4144"/><circle cx="360" cy="342" r="4" fill="#4a4144"/><circle cx="366" cy="368" r="4.5" fill="#4a4144"/>';
-    else { a += R(356, 272, 14, 114, '#55595e'); for (i = 0; i < 8; i++) a += R(362.3, 279 + i * 14, 1.4, 7, '#fff'); }
-    if (f < .5) a += R(300, 300, 40, 24, '#857a74', ' rx="2"') + R(312, 308, 12, 8, '#5d5452');
-    else a += R(340, 309, 16, 5, '#55595e') + R(300, 300, 40, 24, '#f4f1ea', ' rx="3"') + R(300, 309, 40, 5, '#3d7ea6');
-    if (f >= .75) a += '<circle cx="328" cy="348" r="6.5" fill="#f4f1ea" stroke="#3d7ea6" stroke-width="2"/><circle cx="328" cy="348" r="2" fill="#3d7ea6"/>';
-    if (f >= 1) a += '<path d="M363 316l2 8 9 6v3l-9-3-1 7 3 3v2l-4-1-4 1v-2l3-3-1-7-9 3v-3l9-6z" fill="#fff" stroke="#3d7ea6" stroke-width=".7"/>';
-    h += mark('airport', [290, 264, 100, 130], a, 322, 284);
-    // public library
-    f = frac('library');
-    if (f < .25) a = '<rect x="188" y="246" width="40" height="32" fill="none" stroke="#fff" stroke-opacity=".6" stroke-dasharray="3 3"/><ellipse cx="200" cy="266" rx="8" ry="4" fill="#6f6462"/><ellipse cx="216" cy="258" rx="6" ry="3" fill="#6f6462"/>';
-    else {
-      a = R(188, 246, 40, 32, '#b9a184', ' stroke="#c79f68" stroke-width="3"');
-      if (f >= .5) a += R(188, 246, f >= .75 ? 40 : 20, 32, '#c4553b');
-      if (f >= .75) a += R(202, 256, 12, 12, '#86b35f');
-      if (f >= 1) a += '<circle cx="183" cy="250" r="4" fill="#5fa052"/><circle cx="183" cy="274" r="4" fill="#5fa052"/><circle cx="233" cy="262" r="4" fill="#5fa052"/><text x="208" y="265.5" font-size="8" text-anchor="middle">📚</text>';
-    }
-    h += mark('library', [180, 238, 56, 48], a, 208, 240);
-    // Nile garden (only shown once that goal exists)
-    if (goalByKind('garden')) {
-      f = frac('garden');
-      a = '<ellipse cx="60" cy="318" rx="36" ry="30" fill="#000" opacity=".07"/>';
-      for (i = 0; i < Math.round(f * 9); i++) a += '<circle cx="' + (38 + (i % 3) * 22) + '" cy="' + (298 + Math.floor(i / 3) * 20) + '" r="7" fill="#5fa052"/>';
-      h += mark('garden', [24, 286, 74, 64], a, 60, 290);
-    }
-    return h + '<rect width="400" height="412" fill="#5d5050" opacity="' + (0.18 * (1 - p)).toFixed(2) + '" pointer-events="none"/></svg>';
-  }
-
   /* ---------- bank statement import ---------- */
   var AUTO = [
     [/metro|\bbus\b|uber|careem|bolt|jeeny|taxi|fuel|petrol|aldrees|sasco/i, 'transport'],
@@ -958,10 +772,260 @@
     sheet('Sort · ' + S.pending.length + ' left', body);
   }
 
-  function closeSheet() { sheetRoot.innerHTML = ''; draft = null; }
+  function closeSheet() { sheetRoot.innerHTML = ''; draft = null; rit = null; }
+
+  /* ---------- monthly budgets ---------- */
+  function cycleStart() { return (S.cycle && S.cycle.start) || S.created; }
+  function spentSince(d, cat) {
+    return S.tx.reduce(function (a, t) { return t.date >= d && (!cat || t.cat === cat) ? a + t.amt : a; }, 0);
+  }
+  // the average of the last three months we have data for, rounded up to a tidy number
+  function suggestBudget(cat) {
+    var by = {};
+    S.tx.forEach(function (t) { if (t.cat === cat) { var m = t.date.slice(0, 7); by[m] = (by[m] || 0) + t.amt; } });
+    var months = Object.keys(by).sort().slice(-3);
+    if (!months.length) return 0;
+    var avg = months.reduce(function (a, m) { return a + by[m]; }, 0) / months.length;
+    var step = avg < 100 ? 10 : avg < 500 ? 25 : 50;
+    return Math.ceil(avg / step) * step;
+  }
+  function budgetsCard() {
+    if (!S.budgets) return '';
+    var start = cycleStart(), t = today();
+    var total = Math.max(1, daysBetween(start, S.payday)), day = Math.min(total, daysBetween(start, t) + 1);
+    var h = '<div class="card list"><div class="ghead"><h3>This month’s budgets</h3><span>day ' + day + ' of ' + total + '</span></div>', warn = '';
+    CATS.forEach(function (c) {
+      var b = S.budgets[c.id] || 0, sp = r2(spentSince(start, c.id));
+      if (!b && !sp) return;
+      var pct = b ? Math.min(100, sp / b * 100) : 100, cls = b && sp > b ? ' over' : (b && sp >= b * .85 ? ' warn' : '');
+      h += '<div class="tx"><span class="em">' + c.e + '</span><span class="mid"><b>' + c.n + '</b>' +
+        '<span class="bar thin" style="display:block"><i class="' + cls + '" style="width:' + pct + '%"></i></span>' +
+        '<span>' + money(sp) + ' of ' + money(b) + (b ? ' · ' + money(Math.max(0, r2(b - sp))) + ' left' : '') + '</span></span></div>';
+      // early warning: spending faster than the month is passing
+      if (b && day >= 5 && day < total && sp < b && sp / b > day / total + .15) {
+        warn += '<div class="empty">⚠️ ' + c.n + ' is running ahead. At this pace it ends about ' + money(Math.round(sp / day * total - b)) + ' over by payday.</div>';
+      }
+    });
+    return h + warn + '</div>';
+  }
+
+  /* ---------- the payday ritual ---------- */
+  var rit = null;
+  function nextPayday() {
+    var d = new Date(), day = S.payday ? parse(S.payday).getDate() : 29;
+    var last = new Date(d.getFullYear(), d.getMonth() + 2, 0).getDate();
+    // paid about a day before the month ends: follow the month's real length
+    var use = day >= 28 ? last - 1 : Math.min(day, last);
+    return ymd(new Date(d.getFullYear(), d.getMonth() + 1, use));
+  }
+  function openRitual() {
+    rit = { step: 0, salary: S.salary ? String(S.salary) : '', extra: '', next: nextPayday(), alloc: {}, pay: {}, bud: {}, sug: {} };
+    S.goals.forEach(function (g) {
+      var left = Math.max(0, r2(g.target - saved(g.id)));
+      var months = g.due && g.due > today() ? Math.max(1, Math.ceil(daysBetween(today(), g.due) / 30.4)) : 6;
+      rit.alloc[g.id] = left ? String(Math.min(left, Math.ceil(left / months / 50) * 50)) : '';
+    });
+    openIous().forEach(function (x) { if (x.dir === 'owe') rit.pay[x.id] = !x.due || x.due <= rit.next; });
+    CATS.forEach(function (c) {
+      rit.sug[c.id] = suggestBudget(c.id);
+      rit.bud[c.id] = String(S.budgets && S.budgets[c.id] !== undefined ? S.budgets[c.id] : rit.sug[c.id] || '');
+    });
+    drawRitual();
+  }
+  function ritIncome() { return num(rit.salary) + num(rit.extra); }
+  function ritOut() {
+    var a = 0;
+    S.goals.forEach(function (g) { a += num(rit.alloc[g.id] || 0); });
+    openIous().forEach(function (x) { if (rit.pay[x.id]) a += x.amt; });
+    return a;
+  }
+  function ritLeft() {
+    var b = 0;
+    CATS.forEach(function (c) { b += num(rit.bud[c.id] || 0); });
+    return r2(ritIncome() - ritOut() - b);
+  }
+  function getR(k) { return k === 'sal' ? rit.salary : k === 'extra' ? rit.extra : k === 'next' ? rit.next : k.charAt(0) === 'a' ? rit.alloc[k.slice(2)] : rit.bud[k.slice(2)]; }
+  function setR(k, v) {
+    if (k === 'sal') rit.salary = v; else if (k === 'extra') rit.extra = v; else if (k === 'next') rit.next = v;
+    else if (k.charAt(0) === 'a') rit.alloc[k.slice(2)] = v; else rit.bud[k.slice(2)] = v;
+  }
+  function rrow(label, key, step, hint) {
+    return '<div class="rrow"><div class="rl">' + label + (hint ? '<small>' + hint + '</small>' : '') + '</div>' +
+      '<button data-act="rit" data-do="minus" data-k="' + key + '" data-s="' + step + '" aria-label="Less">−</button>' +
+      '<input inputmode="decimal" data-r="' + key + '" value="' + esc(getR(key) || '') + '" placeholder="0">' +
+      '<button data-act="rit" data-do="plus" data-k="' + key + '" data-s="' + step + '" aria-label="More">+</button></div>';
+  }
+  function leftBar() {
+    var l = ritLeft();
+    return '<div id="r-left" class="rleft' + (Math.abs(l) < .5 ? ' zero' : l < 0 ? ' neg' : '') + '"><span>' +
+      (Math.abs(l) < .5 ? 'Every riyal has a job ✓' : l < 0 ? 'Over by' : 'Left to give a job') + '</span><b>' + (Math.abs(l) < .5 ? '0' : money(Math.abs(l))) + '</b></div>';
+  }
+  function ritReview() {
+    var start = cycleStart(), b0 = S.cycle ? S.cycle.bricks0 : 0, s0 = S.cycle ? S.cycle.steps0 : 0, st = streak();
+    var h = '<div class="how"><div><b>' + money(Math.max(0, S.bricks - b0)) + '</b>bricks earned</div><div><b>' + Math.max(0, stepsDone() - s0) + '</b>districts lit</div><div><b>' + st.n + '</b>week streak</div></div>';
+    S.goals.forEach(function (g) {
+      var pc = Math.min(100, saved(g.id) / g.target * 100);
+      h += '<div class="tx"><span class="em">' + KINDS[g.kind].e + '</span><span class="mid"><b>' + esc(g.name) + '</b><span class="bar thin" style="display:block"><i style="width:' + pc + '%"></i></span><span>' + money(saved(g.id)) + ' of ' + money(g.target) + '</span></span></div>';
+    });
+    var rows = CATS.map(function (c) { return { c: c, sp: r2(spentSince(start, c.id)), b: S.budgets ? (S.budgets[c.id] || 0) : 0 }; }).filter(function (x) { return x.sp > 0; })
+      .sort(function (a, b) { return b.sp - a.sp; });
+    var total = rows.reduce(function (a, x) { return a + x.sp; }, 0);
+    h += '<div class="step" style="margin-top:18px">Where the money went since ' + niceDate(start) + '</div>';
+    if (!rows.length) h += '<p class="keep" style="text-align:left">Nothing logged yet. This month is your fresh start.</p>';
+    else {
+      h += '<p class="keep" style="text-align:left">You spent <b>' + money(total) + ' SAR</b> in all.</p>';
+      rows.slice(0, 5).forEach(function (x) {
+        h += '<div class="jr"><span>' + x.c.e + '</span>' + x.c.n + '<i>' + money(x.sp) + (x.b ? ' of ' + money(x.b) : '') + '</i></div>';
+      });
+      if (S.budgets) {
+        var under = rows.filter(function (x) { return x.b && x.sp <= x.b; }).length, over = rows.filter(function (x) { return x.b && x.sp > x.b; });
+        h += '<p class="keep" style="text-align:left;margin-top:12px">✓ You stayed inside <b>' + under + '</b> budget' + (under === 1 ? '' : 's') + '.' +
+          (over.length ? ' What we learned: ' + over.map(function (x) { return x.c.n + ' needed about ' + money(x.sp - x.b) + ' more'; }).join(', ') + '. You can adjust it in a moment.' : '') + '</p>';
+      }
+    }
+    return h;
+  }
+  function drawRitual() {
+    var titles = [['🌅 Payday', 'A new month begins in Khartoum.'], ['🏙️ Last month', 'Wins first.'], ['✉️ The envelope', 'Pay your future self first.'], ['🎯 This month’s budgets', 'Give every riyal a job.'], ['🔨 Construction begins', 'The city is waiting.']];
+    var st = rit.step, body = '', foot = '';
+    if (st === 0) {
+      body = '<div class="field"><label>Your salary this month (SAR)</label><input inputmode="decimal" data-r="sal" placeholder="0" value="' + esc(rit.salary) + '"></div>' +
+        '<div class="field"><label>Any extra income? (freelance, bonus)</label><input inputmode="decimal" data-r="extra" placeholder="0" value="' + esc(rit.extra) + '"><div class="hint">Extra income is the fastest way to finish a goal early.</div></div>' +
+        '<div class="field"><label>Next payday</label><input type="date" data-r="next" value="' + rit.next + '"></div>';
+      foot = '<button class="primary" data-act="rit" data-do="next">Next</button>';
+    } else if (st === 1) {
+      body = ritReview();
+      foot = '<button class="ghost" data-act="rit" data-do="back">Back</button><button class="primary" data-act="rit" data-do="next">Next</button>';
+    } else if (st === 2) {
+      body = '<p class="keep" style="text-align:left">You have <b>' + money(ritIncome()) + ' SAR</b> in your hands. Count these amounts into the envelope before anything else.</p>';
+      if (!S.goals.length) body += '<p class="keep" style="text-align:left">No savings goals yet. You can add them from the home screen later.</p>';
+      S.goals.forEach(function (g) {
+        var left = Math.max(0, r2(g.target - saved(g.id)));
+        body += rrow(KINDS[g.kind].e + ' ' + esc(g.name), 'a:' + g.id, 100, money(left) + ' still to go');
+      });
+      var owes = openIous().filter(function (x) { return x.dir === 'owe'; });
+      if (owes.length) body += '<div class="step" style="margin-top:18px">Debts to clear</div>';
+      owes.forEach(function (x) {
+        body += '<button class="rtog' + (rit.pay[x.id] ? ' on' : '') + '" data-act="rit" data-do="toggle" data-k="' + x.id + '"><span>' + (rit.pay[x.id] ? '✓' : '') + '</span>Pay ' + esc(x.who) + ' back now<b>' + money(x.amt) + '</b></button>';
+      });
+      body += '<div id="r-keep" class="rkeep"></div>';
+      foot = '<button class="ghost" data-act="rit" data-do="back">Back</button><button class="primary" data-act="rit" data-do="next">Next</button>';
+    } else if (st === 3) {
+      body = leftBar() + '<button class="ghost" style="margin:0 0 6px" data-act="rit" data-do="accept">Use the suggested amounts</button>';
+      CATS.forEach(function (c) {
+        body += rrow(c.e + ' ' + c.n, 'b:' + c.id, 25, rit.sug[c.id] ? 'you usually spend about ' + money(rit.sug[c.id]) : '');
+      });
+      body += '<div id="r-help"></div>';
+      foot = '<button class="ghost" data-act="rit" data-do="back">Back</button><button class="primary" id="r-go" data-act="rit" data-do="finish">Begin construction 🔨</button>';
+    } else {
+      body = '<div class="banner">' + cityMap(stepsDone(), S.seen) + '</div>' +
+        '<div class="won">' + rit.done.map(function (d) { return '<div><span>' + d[0] + '</span>' + d[1] + '</div>'; }).join('') + '</div>' +
+        '<p class="keep">Your next payday is ' + parse(S.payday).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) + '.</p>';
+      foot = '<button class="primary" data-act="rit" data-do="close">Enter the city</button>';
+    }
+    sheetRoot.innerHTML = '<div class="ritual"><div class="rhead"><div class="rdots">' + [0, 1, 2, 3, 4].map(function (k) { return '<i class="' + (k <= st ? 'on' : '') + '"></i>'; }).join('') + '</div>' +
+      '<h1>' + titles[st][0] + '</h1><p>' + titles[st][1] + '</p>' + (st < 4 ? '<button class="x rx" data-act="rit" data-do="close" aria-label="Close">✕</button>' : '') + '</div>' +
+      '<div class="rbody">' + body + '</div><div class="rfoot">' + foot + '</div></div>';
+    ritLive();
+    sheetRoot.firstChild.scrollTop = 0;
+  }
+  // the parts that change as you type
+  function ritLive() {
+    if (!rit) return;
+    var keep = document.getElementById('r-keep'), bar = document.getElementById('r-left'), help = document.getElementById('r-help'), go = document.getElementById('r-go');
+    if (keep) {
+      var k = r2(ritIncome() - ritOut());
+      keep.innerHTML = '<span>Into the envelope and debts</span><b>' + money(ritOut()) + '</b><span>Left to live on this month</span><b class="' + (k < 0 ? 'neg' : '') + '">' + money(k) + '</b>';
+    }
+    if (bar) bar.outerHTML = leftBar();
+    if (help) {
+      var l = ritLeft(), g = S.goals.filter(function (x) { return saved(x.id) + num(rit.alloc[x.id] || 0) < x.target; })[0];
+      help.innerHTML = l >= .5
+        ? (g ? '<button class="ghost" data-act="rit" data-do="restsave" data-k="' + g.id + '">Send the last ' + money(l) + ' to ' + esc(g.name) + '</button>' : '') +
+          '<button class="ghost" data-act="rit" data-do="restbuf">Keep the last ' + money(l) + ' as a buffer</button>'
+        : l < -.5 ? '<p class="keep">Trim ' + money(-l) + ' from the budgets above, or go back and lower the envelope amounts.</p>' : '';
+      if (go) go.disabled = Math.abs(l) >= .5;
+    }
+  }
+  function payIou(x, src) {
+    var t = today();
+    if (x.cat) { S.tx.push({ id: uid(), date: t, ts: Date.now(), amt: x.amt, cat: x.cat, src: src, note: 'My share, paid to ' + x.who }); }
+    else S.moves.push({ id: uid(), date: t, src: src, amt: -x.amt, why: 'debt' });
+    x.done = true;
+  }
+  function finishRitual() {
+    var t = today(), sal = num(rit.salary), extra = num(rit.extra), done = [], put = 0;
+    // the salary arrives as cash
+    S.moves.push({ id: uid(), date: t, src: 'cash', amt: sal + extra, why: 'salary' });
+    if (sal) S.inc.push({ id: uid(), date: t, amt: sal, kind: 'salary', who: 'Salary' });
+    if (extra) S.inc.push({ id: uid(), date: t, amt: extra, kind: 'freelance', who: 'Extra income' });
+    S.salary = sal;
+    S.goals.forEach(function (g) {
+      var a = r2(num(rit.alloc[g.id] || 0));
+      if (!(a > 0)) return;
+      S.vault.push({ id: uid(), date: t, goal: g.id, amt: a });
+      S.moves.push({ id: uid(), date: t, src: 'cash', amt: -a, why: 'envelope' });
+      g.peak = Math.max(g.peak || 0, saved(g.id) + (g.used || 0));
+      put += a;
+      done.push([KINDS[g.kind].e, money(a) + ' into ' + esc(g.name)]);
+    });
+    openIous().forEach(function (x) { if (rit.pay[x.id]) { payIou(x, 'cash'); done.push(['🤝', esc(x.who) + ' paid back: ' + money(x.amt)]); } });
+    S.budgets = {};
+    CATS.forEach(function (c) { S.budgets[c.id] = r2(num(rit.bud[c.id] || 0)); });
+    var gain = Math.floor(put / B_PER_SAVED) + 50;
+    S.bricks += gain;
+    checkin();
+    S.payday = rit.next && rit.next > t ? rit.next : nextPayday();
+    S.cycle = { start: t, bricks0: S.bricks, steps0: stepsDone() };
+    done.push(['🎯', 'Budgets set for the month']);
+    done.push(['🧱', '+' + money(gain) + ' bricks']);
+    rit.done = done; rit.step = 4;
+    save();
+    drawRitual();
+  }
+  function ritAct(el) {
+    var d = el.dataset.do, k = el.dataset.k;
+    if (d === 'open') { closeSheet(); return openRitual(); }
+    if (!rit) return;
+    if (d === 'close') { closeSheet(); renderHome(); return; }
+    if (d === 'back') { rit.step--; return drawRitual(); }
+    if (d === 'next') {
+      if (rit.step === 0) {
+        if (!(ritIncome() > 0)) { toast('Type your salary first'); return; }
+        if (!rit.next || rit.next <= today()) { toast('Pick a next payday after today'); return; }
+      }
+      if (rit.step === 2 && ritOut() > ritIncome()) { toast('That is more than you were paid'); return; }
+      rit.step++; return drawRitual();
+    }
+    if (d === 'plus' || d === 'minus') {
+      var v = Math.max(0, num(getR(k) || 0) + (d === 'plus' ? 1 : -1) * num(el.dataset.s));
+      setR(k, v ? String(v) : '');
+      var inp = document.querySelector('[data-r="' + k + '"]');
+      if (inp) inp.value = v || '';
+      return ritLive();
+    }
+    if (d === 'toggle') { rit.pay[k] = !rit.pay[k]; return drawRitual(); }
+    if (d === 'accept') { CATS.forEach(function (c) { rit.bud[c.id] = rit.sug[c.id] ? String(rit.sug[c.id]) : ''; }); return drawRitual(); }
+    if (d === 'restsave') { rit.alloc[k] = String(r2(num(rit.alloc[k] || 0) + ritLeft())); return drawRitual(); }
+    if (d === 'restbuf') { rit.bud.other = String(r2(num(rit.bud.other || 0) + ritLeft())); return drawRitual(); }
+    if (d === 'finish') { if (Math.abs(ritLeft()) >= .5) return; return finishRitual(); }
+  }
+  document.addEventListener('input', function (ev) {
+    var k = ev.target.dataset && ev.target.dataset.r;
+    if (k && rit) { setR(k, ev.target.value); ritLive(); }
+  });
 
   /* ---------- events ---------- */
+  document.addEventListener('click', function () { setTimeout(paintAll, 0); });
   document.addEventListener('click', function (ev) {
+    var cv = ev.target.closest('canvas[data-city]');
+    if (cv) {
+      var box = cv.getBoundingClientRect(), cx = ev.clientX - box.left, cy = ev.clientY - box.top;
+      var hit = (cv._hits || []).filter(function (h) { return cx >= h.x && cx <= h.x + h.w && cy >= h.y && cy <= h.y + h.h; })[0];
+      if (hit && S) return hit.act === 'goal' ? openGoal(hit.id) : openGoalEdit('', hit.kind);
+      if (cv.dataset.city === 'strip' && S && !rit) openJournal();
+      return;
+    }
     var el = ev.target.closest('[data-key],[data-cat],[data-src],[data-act]');
     if (!el) return;
     if (el.dataset.key) return pressKey(el.dataset.key);
@@ -987,6 +1051,7 @@
       return;
     }
     if (act === 'split') { draft.split = !draft.split; return drawLog(); }
+    if (act === 'rit') return ritAct(el);
     if (act === 'goal') return openGoal(el.dataset.id);
     if (act === 'goaledit') return openGoalEdit(el.dataset.id, el.dataset.kind);
     if (act === 'goalsave') return saveGoal(el.dataset.id);
@@ -1052,6 +1117,7 @@
   });
 
   /* ---------- start ---------- */
+  setTimeout(paintAll, 0);
   if (S && S.start && S.tx) {
     // older saves: award bricks for what was already done, so nothing is lost
     if (S.bricks === undefined) {

@@ -43,6 +43,45 @@ input { font: inherit; color: inherit; }
   background: rgba(0,0,0,.28); color: #fff; font-size: 17px;
 }
 
+/* ---------- the city canvases ---------- */
+.banner { background: #0b1b24; }
+.banner canvas { display: block; }
+.strip { height: 300px; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; overscroll-behavior-x: contain; }
+.strip::-webkit-scrollbar { display: none; }
+.swipe { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); background: rgba(8,22,28,.7); color: #fff; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 12px; pointer-events: none; white-space: nowrap; animation: fade 1s ease 5s forwards; }
+@keyframes fade { to { opacity: 0; } }
+.banner .cap { bottom: 34px; }
+
+/* ---------- payday ritual ---------- */
+.ritual { position: fixed; inset: 0; z-index: 15; background: var(--bg); overflow-y: auto; padding-bottom: calc(env(safe-area-inset-bottom) + 96px); }
+.rhead { position: relative; background: linear-gradient(180deg, #0b1b24 0%, #1d4f58 62%, #c98a45 135%); color: #fff; padding: calc(env(safe-area-inset-top) + 18px) 20px 24px; }
+.rhead h1 { margin: 14px 0 4px; font-size: 28px; letter-spacing: -.5px; }
+.rhead p { margin: 0; opacity: .85; }
+.rdots { display: flex; gap: 6px; margin-right: 48px; }
+.rdots i { flex: 1; height: 4px; border-radius: 2px; background: rgba(255,255,255,.25); }
+.rdots i.on { background: #ffd27a; }
+.rx { position: absolute; top: calc(env(safe-area-inset-top) + 8px); right: 12px; background: rgba(255,255,255,.18); color: #fff; }
+.rbody { padding: 16px; max-width: 480px; margin: 0 auto; }
+.rfoot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; gap: 10px; max-width: 480px; margin: 0 auto; padding: 16px 16px calc(env(safe-area-inset-bottom) + 14px); background: linear-gradient(180deg, rgba(244,236,223,0), var(--bg) 34%); }
+.rfoot .primary, .rfoot .ghost { margin: 0; }
+.rfoot .ghost { width: auto; padding: 16px 22px; background: var(--card); }
+.primary:disabled { opacity: .45; }
+.rrow { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
+.rrow .rl { flex: 1; min-width: 0; font-weight: 600; font-size: 15px; }
+.rrow small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+.rrow button { width: 38px; height: 38px; flex: none; border-radius: 12px; background: var(--card); border: 1px solid var(--line); font-size: 20px; font-weight: 700; }
+.rrow input { width: 76px; flex: none; padding: 9px 4px; text-align: center; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font-size: 16px; font-weight: 700; -webkit-user-select: text; user-select: text; }
+.rleft { position: sticky; top: 8px; z-index: 2; background: var(--ink); color: #fff; border-radius: 16px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.rleft b { font-size: 22px; font-variant-numeric: tabular-nums; }
+.rleft.zero { background: var(--good); } .rleft.neg { background: var(--clay); }
+.rtog { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 14px; margin-top: 8px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--card); font-weight: 600; text-align: left; }
+.rtog span { width: 22px; height: 22px; border-radius: 7px; border: 1.5px solid var(--line); display: grid; place-items: center; font-size: 14px; flex: none; }
+.rtog b { margin-left: auto; }
+.rtog.on { border-color: var(--nile); background: #e3f1f1; } .rtog.on span { background: var(--nile); border-color: var(--nile); color: #fff; }
+.rkeep { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; margin-top: 18px; padding: 14px 16px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+.rkeep b { color: var(--ink); font-size: 16px; text-align: right; } .rkeep b.neg { color: var(--clay); }
+.bar i.warn { background: var(--sun); }
+
 /* ---------- city progress ---------- */
 .pop { animation: pop .8s cubic-bezier(.3,1.5,.5,1) .4s both; transform-box: fill-box; transform-origin: 50% 100%; }
 @keyframes pop { from { opacity: 0; transform: scale(.4); } }
