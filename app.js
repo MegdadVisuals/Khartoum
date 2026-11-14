@@ -1054,8 +1054,8 @@
   var CHALS = {
     log5: { t: 'Show up on 5 days this week', goal: 5, r: 40, prog: function () { return weekDays().filter(function (d) { return S.checkins[d]; }).length; } },
     under4: { t: 'Stay under your number on 4 days', goal: 4, r: 50, prog: function () { return weekDays().filter(function (d) { return S.under[d]; }).length; } },
-    noeat3: { t: '3 days with no eating out or delivery', goal: 3, r: 40, prog: function () {
-      return weekDays().filter(function (d) { return S.checkins[d] && !S.tx.some(function (t) { return t.date === d && t.cat === 'eat'; }); }).length; } },
+    // runs for 7 full days from the day it is picked; one eating-out purchase ends it
+    noeat7: { t: 'A whole week with no eating out or delivery', goal: 7, r: 80, whole: true, prog: function () { return Math.min(7, daysBetween(S.challenge.start, today())); } },
     nospend: { t: 'One whole day with no spending', goal: 1, r: 30, prog: function () {
       var t = today(); return weekDays().filter(function (d) { return d < t && S.checkins[d] && spentOn(d) === 0; }).length; } }
   };
@@ -1063,6 +1063,14 @@
   function checkChallenge() {
     var c = S.challenge;
     if (!c) return 0;
+    if (!CHALS[c.id]) { S.challenge = null; return 0; }
+    if (CHALS[c.id].whole) {
+      var age = daysBetween(c.start, today());
+      if (c.done || c.failed) { if (age >= 8) S.challenge = null; return 0; }
+      if (S.tx.some(function (t) { return t.cat === 'eat' && t.date >= c.start; })) { c.failed = true; return 0; }
+      if (age >= 7) { c.done = true; S.bricks += CHALS[c.id].r; return CHALS[c.id].r; }
+      return 0;
+    }
     if (c.week !== weekKey(today())) { S.challenge = null; return 0; }
     if (!c.done && CHALS[c.id] && CHALS[c.id].prog() >= CHALS[c.id].goal) { c.done = true; S.bricks += CHALS[c.id].r; return CHALS[c.id].r; }
     return 0;
@@ -1074,7 +1082,9 @@
     if (c) {
       var d = CHALS[c.id], pr = Math.min(d.goal, d.prog());
       h += '<div class="tx"><span class="em">🏆</span><span class="mid"><b>' + d.t + '</b><span class="bar thin" style="display:block"><i style="width:' + (pr / d.goal * 100) + '%"></i></span>' +
-        '<span>' + (c.done ? 'Done ✓ +' + d.r + ' 🧱' : pr + ' of ' + d.goal + ' · +' + d.r + ' 🧱 when you finish') + '</span></span></div>';
+        '<span>' + (c.done ? 'Done ✓ +' + d.r + ' 🧱' : c.failed ? 'You ate out, so this one is off. No penalty: pick it again any time.'
+          : d.whole ? pr + ' of 7 days clean · +' + d.r + ' 🧱 at the end' : pr + ' of ' + d.goal + ' · +' + d.r + ' 🧱 when you finish') +
+        '</span></span></div>' + (c.failed ? '<button class="ghost" data-act="chal">Pick a challenge</button>' : '');
     }
     h += done ? '<div class="empty">✓ Weekly check-in done.' + (c ? '' : ' <button class="link" data-act="chal">Pick a challenge</button>') + '</div>'
       : '<button class="primary" style="margin-top:12px" data-act="weekly">Weekly check-in · 5 min · +' + B_WEEKLY + ' 🧱</button>';
@@ -1099,8 +1109,9 @@
   }
   function setChallenge(id) {
     if (!id) { if (S.challenge && !S.challenge.done) S.challenge = null; return; }
-    if (S.challenge && S.challenge.id === id && S.challenge.week === weekKey(today())) return;
-    S.challenge = { id: id, week: weekKey(today()), done: false };
+    var c = S.challenge;
+    if (c && c.id === id && !c.failed && (CHALS[id].whole ? !c.done : c.week === weekKey(today()))) return;
+    S.challenge = { id: id, week: weekKey(today()), start: today(), done: false };
   }
   function finishWeekly() {
     var cash = r2(num(val('w-cash'))), t = today(), wk = weekKey(t), got = 0;
@@ -1112,7 +1123,7 @@
     if (!sheetRoot.innerHTML) toast('Check-in done ✓' + (got ? ' +' + got + ' 🧱' : ''));
   }
   function openChal() {
-    sheet('Pick a challenge', '<p class="keep" style="text-align:left">Optional. It runs until the end of this week, and there is no penalty for missing it.</p>' +
+    sheet('Pick a challenge', '<p class="keep" style="text-align:left">Optional. Most run until the end of this week. The no-eating-out one runs for 7 days from today. There is no penalty for missing one.</p>' +
       chalOpts(S.challenge ? S.challenge.id : '') + '<button class="primary" data-act="chalset">Save</button>');
   }
 
