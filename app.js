@@ -82,6 +82,13 @@
     if (!S.pending) S.pending = [];
     if (!S.inc) S.inc = [];
     if (!S.created) S.created = Object.keys(S.checkins).sort()[0] || today();
+    if (!S.weekly) S.weekly = {};
+    if (!S.under) S.under = {};
+    if (!S.treats) S.treats = [];
+    if (!S.treatKeys) S.treatKeys = {};
+    if (S.treatPot === undefined) S.treatPot = 50; // the pot starts with one month's worth
+    if (!S.treatReady) S.treatReady = 0;
+    if (!S.rituals) S.rituals = 0;
   }
   function r2(n) { return Math.round(n * 100) / 100; }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
@@ -159,7 +166,7 @@
     Object.keys(S.allow).forEach(function (d) {
       if (d < t && !S.settled[d]) {
         S.settled[d] = true;
-        if (spentOn(d) <= S.allow[d]) { S.bricks += B_UNDER; won++; }
+        if (spentOn(d) <= S.allow[d]) { S.bricks += B_UNDER; S.under[d] = true; won++; }
       }
     });
     return won;
@@ -284,7 +291,7 @@
 
   /* ---------- home ---------- */
   function renderHome() {
-    var won = settle();
+    var won = settle(), chalWon = checkChallenge(), treatWon = treatUnlocks();
     var b = bridge(), t = today();
     if (!b.isPayday) S.allow[t] = b.allowance;
     save();
@@ -326,9 +333,11 @@
       ? '<button class="nothing done" disabled>✓ You showed up today</button>'
       : '<button class="nothing" data-act="nothing">Nothing to log today</button>';
 
-    app.innerHTML = cityCard() + hero + stats + nothing + budgetsCard() + goalsCard() + iouCard() + bankCard() + renderList() +
+    app.innerHTML = cityCard() + hero + stats + nothing + roughCard() + treatCard() + weeklyCard() + budgetsCard() + goalsCard() + iouCard() + bankCard() + renderList() +
       '<button class="fab" data-act="log"><i>+</i> Log a purchase</button>';
     if (won) toast((won === 1 ? 'You stayed under your number' : won + ' days under your number') + ': +' + won * B_UNDER + ' 🧱');
+    if (chalWon) toast('🏆 Challenge complete: +' + chalWon + ' 🧱');
+    if (treatWon) toast('🎁 You unlocked a treat');
     celebrate();
     paintAll();
   }
@@ -420,6 +429,7 @@
     S.lastSrc = draft.src;
     var got = B_LOG + checkin();
     S.bricks += B_LOG;
+    if (S.rough) { S.rough.n++; if (S.rough.n % 3 === 0) { S.bricks += B_ROUGH; got += B_ROUGH; } }
     save();
     closeSheet();
     renderHome();
@@ -459,6 +469,12 @@
       '<div class="field"><label for="s-cash">Cash in your wallet</label><input id="s-cash" inputmode="decimal" value="' + money(bal('cash')).replace(/,/g, '') + '"></div>' +
       '<div class="field"><label for="s-pay">Expected payday</label><input id="s-pay" type="date" value="' + S.payday + '"></div>' +
       '<button class="primary" data-act="savesettings">Save</button>' +
+      '<div class="step" style="margin-top:22px">More</div>' +
+      '<button class="ghost" data-act="backup">💾 Save a backup' + (S.lastBackup ? ' (last: ' + niceDate(S.lastBackup).toLowerCase() + ')' : '') + '</button>' +
+      '<label class="ghost filebtn">Restore from a backup file<input type="file" id="restore-in" accept="application/json,.json" hidden></label>' +
+      '<button class="ghost" data-act="ask">💬 Ask Claude about my budget</button>' +
+      '<button class="ghost" data-act="treats">🎁 My treats</button>' +
+      '<button class="ghost" data-act="rough">' + (S.rough ? '🌤️ Turn off rough month mode' : '🌧️ This is a rough month') + '</button>' +
       '<button class="ghost" data-act="rit" data-do="open">🌅 Start the payday ritual now</button>' +
       '<button class="ghost danger" data-act="reset">Erase everything and start over</button>' +
       '<div class="private">🔒 Everything stays on this phone.</div>' +
@@ -827,7 +843,7 @@
   function openRitual() {
     rit = { step: 0, salary: S.salary ? String(S.salary) : '', extra: '', next: nextPayday(), alloc: {}, pay: {}, bud: {}, sug: {} };
     S.goals.forEach(function (g) {
-      var left = Math.max(0, r2(g.target - saved(g.id)));
+      var left = S.rough ? 0 : Math.max(0, r2(g.target - saved(g.id)));
       var months = g.due && g.due > today() ? Math.max(1, Math.ceil(daysBetween(today(), g.due) / 30.4)) : 6;
       rit.alloc[g.id] = left ? String(Math.min(left, Math.ceil(left / months / 50) * 50)) : '';
     });
@@ -989,6 +1005,7 @@
     checkin();
     S.payday = rit.next && rit.next > t ? rit.next : nextPayday();
     S.cycle = { start: t, bricks0: S.bricks, steps0: stepsDone() };
+    S.treatPot = r2(S.treatPot + TREAT_MONTHLY); S.rituals++; S.rough = null;
     done.push(['🎯', 'Budgets set for the month']);
     done.push(['🧱', '+' + money(gain) + ' bricks']);
     rit.done = done; rit.step = 4;
@@ -1027,6 +1044,236 @@
     if (k && rit) { setR(k, ev.target.value); ritLive(); }
   });
 
+  /* ---------- weekly check-in and challenges ---------- */
+  var B_WEEKLY = 30, B_BACKUP = 15, B_COMEBACK = 20, B_ROUGH = 15;
+  function weekDays() {
+    var out = [], d = parse(weekKey(today())), t = today();
+    while (ymd(d) <= t) { out.push(ymd(d)); d.setDate(d.getDate() + 1); }
+    return out;
+  }
+  var CHALS = {
+    log5: { t: 'Show up on 5 days this week', goal: 5, r: 40, prog: function () { return weekDays().filter(function (d) { return S.checkins[d]; }).length; } },
+    under4: { t: 'Stay under your number on 4 days', goal: 4, r: 50, prog: function () { return weekDays().filter(function (d) { return S.under[d]; }).length; } },
+    noeat3: { t: '3 days with no eating out or delivery', goal: 3, r: 40, prog: function () {
+      return weekDays().filter(function (d) { return S.checkins[d] && !S.tx.some(function (t) { return t.date === d && t.cat === 'eat'; }); }).length; } },
+    nospend: { t: 'One whole day with no spending', goal: 1, r: 30, prog: function () {
+      var t = today(); return weekDays().filter(function (d) { return d < t && S.checkins[d] && spentOn(d) === 0; }).length; } }
+  };
+  // pays out a finished challenge; returns the bricks won
+  function checkChallenge() {
+    var c = S.challenge;
+    if (!c) return 0;
+    if (c.week !== weekKey(today())) { S.challenge = null; return 0; }
+    if (!c.done && CHALS[c.id] && CHALS[c.id].prog() >= CHALS[c.id].goal) { c.done = true; S.bricks += CHALS[c.id].r; return CHALS[c.id].r; }
+    return 0;
+  }
+  function backupDue() { return !S.lastBackup || daysBetween(S.lastBackup, today()) >= 7; }
+  function weeklyCard() {
+    var done = S.weekly[weekKey(today())], c = S.challenge && CHALS[S.challenge.id] ? S.challenge : null;
+    var h = '<div class="card list"><div class="ghead"><h3>This week</h3>' + (backupDue() ? '<span>backup due</span>' : '') + '</div>';
+    if (c) {
+      var d = CHALS[c.id], pr = Math.min(d.goal, d.prog());
+      h += '<div class="tx"><span class="em">🏆</span><span class="mid"><b>' + d.t + '</b><span class="bar thin" style="display:block"><i style="width:' + (pr / d.goal * 100) + '%"></i></span>' +
+        '<span>' + (c.done ? 'Done ✓ +' + d.r + ' 🧱' : pr + ' of ' + d.goal + ' · +' + d.r + ' 🧱 when you finish') + '</span></span></div>';
+    }
+    h += done ? '<div class="empty">✓ Weekly check-in done.' + (c ? '' : ' <button class="link" data-act="chal">Pick a challenge</button>') + '</div>'
+      : '<button class="primary" style="margin-top:12px" data-act="weekly">Weekly check-in · 5 min · +' + B_WEEKLY + ' 🧱</button>';
+    return h + '</div>';
+  }
+  function chalOpts(picked) {
+    return opts('w-ch', [['', 'No challenge this week']].concat(Object.keys(CHALS).map(function (k) { return [k, '🏆 ' + CHALS[k].t + ' · +' + CHALS[k].r + ' 🧱']; })), picked || '');
+  }
+  function openWeekly() {
+    var days = weekDays(), from = days[0], total = r2(spentSince(from));
+    var rows = CATS.map(function (c) { return { c: c, sp: r2(spentSince(from, c.id)) }; }).filter(function (x) { return x.sp > 0; }).sort(function (a, b) { return b.sp - a.sp; });
+    sheet('Weekly check-in',
+      '<div class="how"><div><b>' + money(total) + '</b>spent this week</div><div><b>' + days.filter(function (d) { return S.checkins[d]; }).length + '</b>days you showed up</div><div><b>' +
+      days.filter(function (d) { return S.under[d]; }).length + '</b>days under your number</div></div>' +
+      rows.slice(0, 4).map(function (x) { return '<div class="jr"><span>' + x.c.e + '</span>' + x.c.n + '<i>' + money(x.sp) + '</i></div>'; }).join('') +
+      '<div class="field"><label for="w-cash">Any cash you spent but didn’t log?</label><input id="w-cash" inputmode="decimal" placeholder="0"><div class="hint">A rough number is fine. It keeps your wallet honest.</div></div>' +
+      '<div class="field"><label>Back up your data</label><button class="ghost" style="margin-top:0" data-act="backup">' + (backupDue() ? 'Save a backup now · +' + B_BACKUP + ' 🧱' : '✓ Backed up ' + niceDate(S.lastBackup).toLowerCase()) + '</button>' +
+      '<div class="hint">Choose “Save to Files” and pick iCloud Drive. If you lose your phone, this file brings everything back.</div></div>' +
+      '<div class="field"><label>A challenge for the week (optional)</label>' + chalOpts(S.challenge ? S.challenge.id : '') + '</div>' +
+      '<p class="keep" style="text-align:left">Card purchases: import your Alinma statement from the home screen after this.</p>' +
+      '<button class="primary" data-act="weeklydone">Finish check-in</button>');
+  }
+  function setChallenge(id) {
+    if (!id) { if (S.challenge && !S.challenge.done) S.challenge = null; return; }
+    if (S.challenge && S.challenge.id === id && S.challenge.week === weekKey(today())) return;
+    S.challenge = { id: id, week: weekKey(today()), done: false };
+  }
+  function finishWeekly() {
+    var cash = r2(num(val('w-cash'))), t = today(), wk = weekKey(t), got = 0;
+    if (cash > 0) S.tx.push({ id: uid(), date: t, ts: Date.now(), amt: cash, cat: 'other', src: 'cash', note: 'Cash I didn’t log (estimate)' });
+    setChallenge(radio('w-ch'));
+    if (!S.weekly[wk]) { S.weekly[wk] = true; S.bricks += B_WEEKLY; got = B_WEEKLY; }
+    got += checkin();
+    save(); closeSheet(); renderHome();
+    if (!sheetRoot.innerHTML) toast('Check-in done ✓' + (got ? ' +' + got + ' 🧱' : ''));
+  }
+  function openChal() {
+    sheet('Pick a challenge', '<p class="keep" style="text-align:left">Optional. It runs until the end of this week, and there is no penalty for missing it.</p>' +
+      chalOpts(S.challenge ? S.challenge.id : '') + '<button class="primary" data-act="chalset">Save</button>');
+  }
+
+  /* ---------- backup and restore ---------- */
+  function backedUp() {
+    var wk = weekKey(today()), got = 0;
+    if (S.backupWeek !== wk) { S.backupWeek = wk; S.bricks += B_BACKUP; got = B_BACKUP; }
+    S.lastBackup = today();
+    save(); closeSheet(); renderHome();
+    if (!sheetRoot.innerHTML) toast('Backup saved ✓' + (got ? ' +' + got + ' 🧱' : ''));
+  }
+  function doBackup() {
+    var name = 'khartoum-backup-' + today() + '.json', text = JSON.stringify(S);
+    var file;
+    try { file = new File([text], name, { type: 'application/json' }); } catch (e) { file = null; }
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file] }).then(backedUp).catch(function () { toast('Backup cancelled'); });
+      return;
+    }
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    backedUp();
+  }
+  function restoreFrom(file) {
+    var fr = new FileReader();
+    fr.onload = function () {
+      var o = null;
+      try { o = JSON.parse(fr.result); } catch (e) {}
+      if (!o || !o.start || !o.tx || !o.checkins) { toast('That file is not a Khartoum backup'); return; }
+      pendingRestore = o;
+      var last = Object.keys(o.checkins).sort().pop();
+      sheet('Restore this backup?', '<p class="keep" style="text-align:left">This backup has <b>' + o.tx.length + ' purchases</b> and <b>' + money(o.bricks || 0) + ' bricks</b>' +
+        (last ? ', last used ' + niceDate(last).toLowerCase() : '') + '.</p><p class="keep" style="text-align:left">It will <b>replace everything</b> that is on this phone now.</p>' +
+        '<button class="primary" data-act="restoreyes">Replace with this backup</button><button class="ghost" data-act="close">Cancel</button>');
+    };
+    fr.readAsText(file);
+  }
+  var pendingRestore = null;
+
+  /* ---------- Ask Claude: a disguised summary you copy yourself ---------- */
+  function rough(v) { v = Math.abs(v); return v < 100 ? Math.round(v / 5) * 5 : v < 1000 ? Math.round(v / 10) * 10 : Math.round(v / 100) * 100; }
+  function buildSummary() {
+    var start = cycleStart(), t = today(), total = Math.max(1, daysBetween(start, S.payday)), day = Math.max(1, Math.min(total, daysBetween(start, t) + 1));
+    var L = ['Here is a summary of my personal budget. Amounts are in SAR and rounded. It has no names, shops or dates.', ''];
+    if (S.salary) L.push('Monthly salary: about ' + money(rough(S.salary)));
+    L.push('I am on day ' + day + ' of a ' + total + '-day budget month.', '', 'Spending so far this month, by category (spent / budget):');
+    CATS.forEach(function (c) {
+      var sp = spentSince(start, c.id), b = S.budgets ? (S.budgets[c.id] || 0) : 0;
+      if (sp || b) L.push('- ' + c.n + ': ' + money(rough(sp)) + ' / ' + (b ? money(rough(b)) : 'no budget'));
+    });
+    L.push('', 'My usual monthly spending (average of recent months):');
+    CATS.forEach(function (c) { var s = suggestBudget(c.id); if (s) L.push('- ' + c.n + ': ' + money(rough(s))); });
+    if (S.goals.length) {
+      L.push('', 'Savings goals:');
+      S.goals.forEach(function (g, i) {
+        var months = g.due && g.due > t ? Math.max(1, Math.ceil(daysBetween(t, g.due) / 30.4)) : 0;
+        L.push('- Goal ' + (i + 1) + ': target ' + money(rough(g.target)) + ', saved ' + money(rough(saved(g.id))) + (months ? ', ' + months + ' month' + (months > 1 ? 's' : '') + ' left' : ', no deadline'));
+      });
+    }
+    var owe = 0, owed = 0;
+    openIous().forEach(function (x) { if (x.dir === 'owe') owe += x.amt; else owed += x.amt; });
+    if (owe || owed) L.push('', 'Debts: I owe about ' + money(rough(owe)) + '; I am owed about ' + money(rough(owed)) + '.');
+    L.push('', 'Please help me plan next month: where could I cut back, and is my savings plan realistic?');
+    return L.join('\n');
+  }
+  function openAsk() {
+    sheet('Ask Claude', '<p class="keep" style="text-align:left">This is <b>everything</b> that would be shared: rounded amounts and category names only. Nothing is sent by the app. You copy it and paste it into Claude yourself.</p>' +
+      '<textarea id="ask-text" class="asktext" readonly>' + esc(buildSummary()) + '</textarea>' +
+      '<button class="primary" data-act="copysum">Copy the summary</button>');
+  }
+  function copySummary() {
+    var el = document.getElementById('ask-text'), text = el.value;
+    function ok() { toast('Copied ✓ Now paste it into Claude'); }
+    function old() { el.focus(); el.select(); try { document.execCommand('copy'); ok(); } catch (e) { toast('Press and hold the text to copy it'); } }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, old); else old();
+  }
+
+  /* ---------- treats ---------- */
+  var TREAT_MONTHLY = 50;
+  // real-life rewards unlock at milestones; returns how many were just unlocked
+  function treatUnlocks() {
+    var keys = [], st = streak(), n = 0;
+    if (st.n >= 4) keys.push('s' + Math.floor(st.n / 4));
+    S.goals.forEach(function (g) { if (saved(g.id) + (g.used || 0) >= g.target) keys.push('g' + g.id); });
+    if (S.rituals >= 2) keys.push('m' + S.rituals);
+    keys.forEach(function (k) { if (!S.treatKeys[k]) { S.treatKeys[k] = 1; S.treatReady++; n++; } });
+    return n;
+  }
+  function treatCard() {
+    if (!S.treatReady) return '';
+    var h = '<div class="card list treat"><h3>🎁 You earned a treat</h3>';
+    if (!S.treats.length) return h + '<div class="empty">Choose a few small things you’d look forward to, and pick one now.</div><button class="ghost" data-act="treats">Choose my treats</button></div>';
+    h += '<div class="empty">Treats pot: <b>' + money(S.treatPot) + ' SAR</b>. Pick one, enjoy it, and log it when you pay.</div>';
+    S.treats.forEach(function (x) {
+      var can = x.cost <= S.treatPot;
+      h += '<button class="ghost pick" ' + (can ? 'data-act="treat" data-id="' + x.id + '"' : 'disabled style="opacity:.5"') + '>' + esc(x.name) + ' · ' + money(x.cost) +
+        (can ? '' : ' (the pot needs ' + money(r2(x.cost - S.treatPot)) + ' more)') + '</button>';
+    });
+    return h + '</div>';
+  }
+  function openTreats() {
+    sheet('My treats', '<p class="keep" style="text-align:left">Small real rewards for sticking with it. The pot grows by ' + TREAT_MONTHLY + ' SAR every payday, and a treat unlocks when you finish a goal, keep a 4-week streak, or complete a month. Pot now: <b>' + money(S.treatPot) + ' SAR</b>.</p>' +
+      S.treats.map(function (x) { return '<div class="jr done"><span>🎁</span>' + esc(x.name) + '<i>' + money(x.cost) + ' <button class="link danger" data-act="treatdel" data-id="' + x.id + '">remove</button></i></div>'; }).join('') +
+      '<div class="field"><label for="t-name">Add a treat</label><input id="t-name" maxlength="30" placeholder="e.g. Shawarma night"></div>' +
+      '<div class="field"><label for="t-cost">About how much? (SAR)</label><input id="t-cost" inputmode="decimal" placeholder="0"></div>' +
+      '<button class="primary" data-act="treatadd">Add it</button>');
+  }
+
+  /* ---------- rough month, welcome back ---------- */
+  function roughCard() {
+    if (!S.rough) return '';
+    return '<div class="card paycard"><b>🌧️ Rough month mode</b><p>Goals are paused and nothing breaks. Your city stays exactly as it is. Small steps only: every 3 purchases you log repairs a little more (' +
+      (S.rough.n % 3) + ' of 3).</p><button class="ghost" data-act="rough">Things are better: turn it off</button></div>';
+  }
+  function openWelcome(days) {
+    sheet('Welcome back 👋', '<p class="keep" style="text-align:left">It’s been ' + days + ' days. Nothing is lost: your city is exactly as you left it, and your streak counts weeks, not days.</p>' +
+      '<div class="field"><label for="wb-cash">Roughly how much cash did you spend while you were away?</label><input id="wb-cash" inputmode="decimal" placeholder="0"><div class="hint">One number is enough. A guess is fine.</div></div>' +
+      '<button class="primary" data-act="wbsave">Catch me up · +' + B_COMEBACK + ' 🧱</button><button class="ghost" data-act="wbsave">Skip, I’ll just carry on</button>');
+  }
+  function saveWelcome() {
+    var cash = r2(num(val('wb-cash'))), d = new Date(); d.setDate(d.getDate() - 1);
+    if (cash > 0) { S.tx.push({ id: uid(), date: ymd(d), ts: Date.now() - 864e5, amt: cash, cat: 'other', src: 'cash', note: 'While I was away (estimate)' }); S.bricks += B_COMEBACK; }
+    var got = checkin() + (cash > 0 ? B_COMEBACK : 0);
+    save(); closeSheet(); renderHome();
+    if (!sheetRoot.innerHTML) toast('You’re caught up ✓ +' + got + ' 🧱');
+  }
+
+  function extraAct(act, el) {
+    if (act === 'weekly') return openWeekly();
+    if (act === 'weeklydone') return finishWeekly();
+    if (act === 'chal') return openChal();
+    if (act === 'chalset') { setChallenge(radio('w-ch')); save(); closeSheet(); renderHome(); return; }
+    if (act === 'backup') return doBackup();
+    if (act === 'restoreyes') {
+      if (!pendingRestore) return;
+      S = pendingRestore; pendingRestore = null; ensure(); save(); closeSheet(); stripX = null; renderHome(); toast('Backup restored ✓'); return;
+    }
+    if (act === 'ask') return openAsk();
+    if (act === 'copysum') return copySummary();
+    if (act === 'treats') return openTreats();
+    if (act === 'treatadd') {
+      var nm = val('t-name').trim(), cost = r2(num(val('t-cost')));
+      if (!nm || !(cost > 0)) { toast('Type a name and a cost'); return; }
+      S.treats.push({ id: uid(), name: nm, cost: cost }); save(); renderHome(); return openTreats();
+    }
+    if (act === 'treatdel') { S.treats = S.treats.filter(function (x) { return x.id !== el.dataset.id; }); save(); renderHome(); return openTreats(); }
+    if (act === 'treat') {
+      var tr = S.treats.filter(function (x) { return x.id === el.dataset.id; })[0];
+      if (!tr || tr.cost > S.treatPot) return;
+      S.treatPot = r2(S.treatPot - tr.cost); S.treatReady = Math.max(0, S.treatReady - 1);
+      save(); renderHome(); toast('Enjoy your ' + tr.name + ' 🎉 Log it when you pay.'); return;
+    }
+    if (act === 'rough') {
+      S.rough = S.rough ? null : { n: 0 };
+      save(); closeSheet(); renderHome(); toast(S.rough ? 'Rough month mode is on. Nothing breaks.' : 'Rough month mode is off'); return;
+    }
+    if (act === 'wbsave') return saveWelcome();
+    return false;
+  }
+
   /* ---------- events ---------- */
   document.addEventListener('click', function () { setTimeout(paintAll, 0); });
   document.addEventListener('click', function (ev) {
@@ -1064,6 +1311,7 @@
     }
     if (act === 'split') { draft.split = !draft.split; return drawLog(); }
     if (act === 'rit') return ritAct(el);
+    if (extraAct(act, el) !== false) return;
     if (act === 'goal') return openGoal(el.dataset.id);
     if (act === 'goaledit') return openGoalEdit(el.dataset.id, el.dataset.kind);
     if (act === 'goalsave') return saveGoal(el.dataset.id);
@@ -1121,6 +1369,7 @@
 
   document.addEventListener('change', function (ev) {
     if (ev.target.id === 'pdf-in' && ev.target.files && ev.target.files[0]) { importPdf(ev.target.files[0]); ev.target.value = ''; }
+    if (ev.target.id === 'restore-in' && ev.target.files && ev.target.files[0]) { restoreFrom(ev.target.files[0]); ev.target.value = ''; }
   });
 
   // refresh the number when the app is reopened on a new day
@@ -1138,6 +1387,8 @@
     }
     ensure();
     renderHome();
+    var lastSeen = Object.keys(S.checkins).sort().pop();
+    if (lastSeen && daysBetween(lastSeen, today()) >= 4 && !sheetRoot.innerHTML) openWelcome(daysBetween(lastSeen, today()));
   } else { S = null; renderSetup(); }
 
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {

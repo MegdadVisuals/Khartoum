@@ -85,6 +85,12 @@ input { font: inherit; color: inherit; }
 .rkeep b { color: var(--ink); font-size: 16px; text-align: right; } .rkeep b.neg { color: var(--clay); }
 .bar i.warn { background: var(--sun); }
 
+.link { color: var(--nile-dark); font-weight: 700; text-decoration: underline; font-size: inherit; }
+.link.danger { color: var(--clay); font-weight: 600; font-size: 12px; }
+.asktext { width: 100%; height: 240px; margin-top: 12px; padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); font: 13px/1.45 ui-monospace, Menlo, Consolas, monospace; color: var(--ink); resize: none; -webkit-user-select: text; user-select: text; }
+.treat { border-color: var(--sun); background: #fff6e4; }
+.sheet .ghost { background: var(--card); }
+
 /* ---------- city progress ---------- */
 .pop { animation: pop .8s cubic-bezier(.3,1.5,.5,1) .4s both; transform-box: fill-box; transform-origin: 50% 100%; }
 @keyframes pop { from { opacity: 0; transform: scale(.4); } }
