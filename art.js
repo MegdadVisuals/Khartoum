@@ -117,6 +117,8 @@
       var h = 7 + rnd() * 11 + 50 * Math.exp(-dn * dn / (2 * 80 * 80)) * (.55 + rnd() * .6) + 15 * Math.exp(-db * db / (2 * 70 * 70)) * rnd();
       if (onTuti) { h = 5 + rnd() * 3; w *= .6; d *= .6; }
       if (rnd() < .04) h *= 1.5;
+      // keep the blocks in front of the library and the bridge low, so the landmarks stay in view
+      if ((c[0] > 420 && c[0] < 496 && c[1] > 436 && c[1] < 500) || (c[0] > 572 && c[0] < 628 && c[1] > 374 && c[1] < 420)) h = Math.min(h, 9);
       out.push({ x: x + jx, y: y + jy, w: w, d: d, h: h, t: t, dist: best, kind: t < .05 ? 2 : t < .2 ? 1 : 0, hue: Math.floor(rnd() * 3) });
     }
     return (LOTS = out);
@@ -125,7 +127,7 @@
   /* ---------- camera ---------- */
   function camera(name, cssW, cssH) {
     var c = name === 'strip'
-      ? { A: .5, k: .42, zs: 1.1, crop: [40, 20, 960, 630], top: 46 }
+      ? { A: .14, k: .4, zs: .8, crop: [130, 190, 880, 600], top: 64 }
       : { A: .2, k: .8, zs: .85, crop: [150, 44, 800, 632], top: 26 };
     c.cos = Math.cos(c.A); c.sin = Math.sin(c.A);
     var xs = [], ys = [];
@@ -393,15 +395,15 @@
         ctx.fillStyle = k === 3 ? 'rgba(200,255,225,.85)' : 'rgba(235,245,246,.8)'; ctx.fillText(t[0], q[0], q[1]);
       });
     }
-    function tag(kind, x, y, z, empty) {
+    function tag(kind, x, y, z, empty, dy) {
       var gl = goals[kind], q = c.P(x, y, z);
-      pill(ctx, q[0], q[1] - 4, gl ? gl.name + ' ' + Math.floor(gl.f * 100) + '%' : '+ ' + empty, gl ? gl.f : 0, !!gl, hits,
+      pill(ctx, q[0], q[1] - 4 + (dy || 0), gl ? gl.name + ' ' + Math.floor(gl.f * 100) + '%' : '+ ' + empty, gl ? gl.f : 0, !!gl, hits,
         gl ? { act: 'goal', id: gl.id } : { act: 'goaledit', kind: kind });
     }
     if (o.goals) {
       tag('bridge', 600, 338, 16, 'Bridge');
-      tag('airport', 556, 390, F('airport') >= .75 ? 44 : 20, 'Airport');
-      tag('library', 458, 408, F('library') >= .75 ? 34 : 14, 'Library');
+      tag('airport', 548, 486, F('airport') >= .75 ? 46 : 16, 'Airport');
+      if (o.cam === 'map') tag('library', 458, 440, 0, 'Library', 34); else tag('library', 458, 408, F('library') >= .75 ? 34 : 14, 'Library');
       if (goals.garden) tag('garden', 318, 406, 16, 'Garden');
       // the landmarks themselves can be tapped too
       [['bridge', Z_BRIDGE], ['airport', Z_AIR], ['library', Z_LIB], ['garden', Z_GARDEN]].forEach(function (zk) {
