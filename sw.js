@@ -1,6 +1,6 @@
 /* Offline support: try the network first (so updates arrive), fall back to the saved copy. */
-var CACHE = 'rk-v7';
-var FILES = ['./', 'index.html', 'style.css', 'app.js', 'art.js', 'import.js', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'];
+var CACHE = 'rk-v8';
+var FILES = ['./', 'index.html', 'style.css', 'app.js', 'art.js', 'import.js', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png', 'city-ruined.jpg', 'city-rebuilt.jpg'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(FILES); }).then(function () { return self.skipWaiting(); }));
