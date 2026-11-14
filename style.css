@@ -44,7 +44,10 @@ input { font: inherit; color: inherit; }
 }
 
 /* ---------- the city canvases ---------- */
-.banner { background: #0b1b24; }
+.banner { background: #e9e6ee; }
+.paycard b { font-size: 17px; }
+.paycard p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+.paycard .primary { margin-top: 14px; }
 .banner canvas { display: block; }
 .strip { height: 300px; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; overscroll-behavior-x: contain; }
 .strip::-webkit-scrollbar { display: none; }

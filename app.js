@@ -92,7 +92,8 @@
   }
   function bridge() {
     var t = today();
-    var days = Math.max(1, daysBetween(t, S.payday));
+    // the salary can land a day or two early or late: if the expected day has come, plan for two more days
+    var gap = daysBetween(t, S.payday), days = gap >= 1 ? gap : 2;
     var total = bal('cash') + bal('bank');
     var spent = spentOn(t);
     var allowance = Math.max(0, (total + spent) / days);
@@ -100,7 +101,7 @@
       days: days, total: total, spent: spent, allowance: allowance,
       left: allowance - spent,
       tomorrow: days > 1 ? Math.max(0, total) / (days - 1) : null,
-      isPayday: daysBetween(t, S.payday) <= 0
+      isPayday: false, near: gap <= 2, late: gap < 0, gap: gap
     };
   }
 
@@ -312,8 +313,12 @@
         tom + '</div>';
     }
 
-    var stats = '<div class="row3">' +
-      '<div class="stat"><b>' + b.days + '</b><span>' + (b.days === 1 ? 'day' : 'days') + ' to payday</span></div>' +
+    var payAsk = !b.near ? '' : '<div class="card paycard"><b>🌅 Has your salary arrived?</b>' +
+      '<p>' + (b.late ? 'It was expected ' + niceDate(S.payday) + '. Running late is fine: your daily number keeps stretching what you have.' :
+        'It’s expected ' + niceDate(S.payday).toLowerCase() + ', but it can land a day or two early or late.') + ' Start the ritual on the day the money is actually in your hand.</p>' +
+      '<button class="primary" data-act="rit" data-do="open">My salary arrived: start the ritual</button></div>';
+    var stats = payAsk + '<div class="row3">' +
+      '<div class="stat"><b>' + (b.gap >= 1 ? b.gap : b.gap === 0 ? 'today' : 'late') + '</b><span>' + (b.gap >= 1 ? (b.gap === 1 ? 'day' : 'days') + ' to payday' : 'payday due') + '</span></div>' +
       '<div class="stat"><b>' + money(bal('cash')) + '</b><span>cash</span></div>' +
       '<div class="stat"><b>' + money(bal('bank')) + '</b><span>bank</span></div></div>';
 
@@ -452,7 +457,7 @@
       '<p style="color:var(--muted);margin:8px 0 0">If the app and real life don’t match, type what you actually have right now.</p>' +
       '<div class="field"><label for="s-bank">Money in your bank account</label><input id="s-bank" inputmode="decimal" value="' + money(bal('bank')).replace(/,/g, '') + '"></div>' +
       '<div class="field"><label for="s-cash">Cash in your wallet</label><input id="s-cash" inputmode="decimal" value="' + money(bal('cash')).replace(/,/g, '') + '"></div>' +
-      '<div class="field"><label for="s-pay">Next payday</label><input id="s-pay" type="date" value="' + S.payday + '"></div>' +
+      '<div class="field"><label for="s-pay">Expected payday</label><input id="s-pay" type="date" value="' + S.payday + '"></div>' +
       '<button class="primary" data-act="savesettings">Save</button>' +
       '<button class="ghost" data-act="rit" data-do="open">🌅 Start the payday ritual now</button>' +
       '<button class="ghost danger" data-act="reset">Erase everything and start over</button>' +
@@ -812,7 +817,8 @@
   /* ---------- the payday ritual ---------- */
   var rit = null;
   function nextPayday() {
-    var d = new Date(), day = S.payday ? parse(S.payday).getDate() : 29;
+    // count from the payday that was expected, so an early or late salary doesn't shift the next one by a month
+    var d = S.payday && Math.abs(daysBetween(today(), S.payday)) <= 10 ? parse(S.payday) : new Date(), day = S.payday ? parse(S.payday).getDate() : 29;
     var last = new Date(d.getFullYear(), d.getMonth() + 2, 0).getDate();
     // paid about a day before the month ends: follow the month's real length
     var use = day >= 28 ? last - 1 : Math.min(day, last);
@@ -862,19 +868,15 @@
   }
   function ritReview() {
     var start = cycleStart(), b0 = S.cycle ? S.cycle.bricks0 : 0, s0 = S.cycle ? S.cycle.steps0 : 0, st = streak();
-    var h = '<div class="how"><div><b>' + money(Math.max(0, S.bricks - b0)) + '</b>bricks earned</div><div><b>' + Math.max(0, stepsDone() - s0) + '</b>districts lit</div><div><b>' + st.n + '</b>week streak</div></div>';
-    S.goals.forEach(function (g) {
-      var pc = Math.min(100, saved(g.id) / g.target * 100);
-      h += '<div class="tx"><span class="em">' + KINDS[g.kind].e + '</span><span class="mid"><b>' + esc(g.name) + '</b><span class="bar thin" style="display:block"><i style="width:' + pc + '%"></i></span><span>' + money(saved(g.id)) + ' of ' + money(g.target) + '</span></span></div>';
-    });
+    // 1. the money
     var rows = CATS.map(function (c) { return { c: c, sp: r2(spentSince(start, c.id)), b: S.budgets ? (S.budgets[c.id] || 0) : 0 }; }).filter(function (x) { return x.sp > 0; })
       .sort(function (a, b) { return b.sp - a.sp; });
     var total = rows.reduce(function (a, x) { return a + x.sp; }, 0);
-    h += '<div class="step" style="margin-top:18px">Where the money went since ' + niceDate(start) + '</div>';
+    var h = '<div class="step">Where the money went since ' + niceDate(start) + '</div>';
     if (!rows.length) h += '<p class="keep" style="text-align:left">Nothing logged yet. This month is your fresh start.</p>';
     else {
-      h += '<p class="keep" style="text-align:left">You spent <b>' + money(total) + ' SAR</b> in all.</p>';
-      rows.slice(0, 5).forEach(function (x) {
+      h += '<div class="amount" style="text-align:left;font-size:40px">' + money(total) + '<small>SAR spent</small></div>';
+      rows.slice(0, 6).forEach(function (x) {
         h += '<div class="jr"><span>' + x.c.e + '</span>' + x.c.n + '<i>' + money(x.sp) + (x.b ? ' of ' + money(x.b) : '') + '</i></div>';
       });
       if (S.budgets) {
@@ -883,15 +885,25 @@
           (over.length ? ' What we learned: ' + over.map(function (x) { return x.c.n + ' needed about ' + money(x.sp - x.b) + ' more'; }).join(', ') + '. You can adjust it in a moment.' : '') + '</p>';
       }
     }
+    // 2. the goals
+    h += '<div class="step" style="margin-top:22px">Your savings goals</div>';
+    if (!S.goals.length) h += '<p class="keep" style="text-align:left">No goals yet.</p>';
+    S.goals.forEach(function (g) {
+      var pc = Math.min(100, saved(g.id) / g.target * 100);
+      h += '<div class="tx"><span class="em">' + KINDS[g.kind].e + '</span><span class="mid"><b>' + esc(g.name) + '</b><span class="bar thin" style="display:block"><i style="width:' + pc + '%"></i></span><span>' + money(saved(g.id)) + ' of ' + money(g.target) + ' · ' + Math.floor(pc) + '%</span></span></div>';
+    });
+    // 3. the city
+    h += '<div class="step" style="margin-top:22px">The city</div>' +
+      '<div class="how"><div><b>' + money(Math.max(0, S.bricks - b0)) + '</b>bricks earned</div><div><b>' + Math.max(0, stepsDone() - s0) + '</b>districts lit</div><div><b>' + st.n + '</b>week streak</div></div>';
     return h;
   }
   function drawRitual() {
-    var titles = [['🌅 Payday', 'A new month begins in Khartoum.'], ['🏙️ Last month', 'Wins first.'], ['✉️ The envelope', 'Pay your future self first.'], ['🎯 This month’s budgets', 'Give every riyal a job.'], ['🔨 Construction begins', 'The city is waiting.']];
+    var titles = [['🌅 Payday', 'A new month begins in Khartoum.'], ['🏙️ Last month', 'Your money first, then the city.'], ['✉️ The envelope', 'Pay your future self first.'], ['🎯 This month’s budgets', 'Give every riyal a job.'], ['🔨 Construction begins', 'The city is waiting.']];
     var st = rit.step, body = '', foot = '';
     if (st === 0) {
       body = '<div class="field"><label>Your salary this month (SAR)</label><input inputmode="decimal" data-r="sal" placeholder="0" value="' + esc(rit.salary) + '"></div>' +
         '<div class="field"><label>Any extra income? (freelance, bonus)</label><input inputmode="decimal" data-r="extra" placeholder="0" value="' + esc(rit.extra) + '"><div class="hint">Extra income is the fastest way to finish a goal early.</div></div>' +
-        '<div class="field"><label>Next payday</label><input type="date" data-r="next" value="' + rit.next + '"></div>';
+        '<div class="field"><label>When do you expect the next one?</label><input type="date" data-r="next" value="' + rit.next + '"><div class="hint">A best guess is enough. You start the next ritual whenever the money actually arrives, early or late.</div></div>';
       foot = '<button class="primary" data-act="rit" data-do="next">Next</button>';
     } else if (st === 1) {
       body = ritReview();
