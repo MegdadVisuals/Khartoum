@@ -678,22 +678,42 @@
   function ruleKey(r) {
     if (r.type === 'online') return '';
     if (r.who) return 'w:' + r.who.toLowerCase();
-    return r.type === 'transfer' && r.arabic ? 'a:' + (r.amt > 0 ? '+' : '-') + r.arabic : '';
+    return (r.type === 'transfer' || r.sms) && r.arabic ? 'a:' + (r.amt > 0 ? '+' : '-') + r.arabic : '';
   }
   function guess(r) {
     if (r.type === 'deposit' || r.type === 'atm') return { t: 'kind', v: 'own' };
     var k = ruleKey(r);
     if (k && S.rules[k]) return S.rules[k];
+    // bank texts cut shop names short ("MOHAMMED R"), so a rule for the full name counts too, and the other way round
+    if (k && k.indexOf('w:') === 0) {
+      for (var rk in S.rules) {
+        if (rk.indexOf('w:') !== 0) continue;
+        var a = k.length < rk.length ? k : rk, b = a === k ? rk : k;
+        if (a.length >= 7 && b.indexOf(a) === 0) return S.rules[rk];
+      }
+    }
     if (r.amt < 0 && r.type === 'card' && r.who) {
       for (var i = 0; i < AUTO.length; i++) if (AUTO[i][0].test(r.who)) return { t: 'cat', v: AUTO[i][1] };
     }
     return null;
   }
   function rowTitle(r) {
-    return r.who || (r.type === 'online' ? 'Online purchase' : r.type === 'transfer' ? (r.amt > 0 ? 'Transfer in' : 'Transfer out') : r.type === 'deposit' ? 'Cash deposit' : r.type === 'atm' ? 'Cash withdrawal' : 'Bank transaction');
+    return r.who || (r.sms && r.arabic) || (r.type === 'online' ? 'Online purchase' : r.type === 'transfer' ? (r.amt > 0 ? 'Transfer in' : 'Transfer out') : r.type === 'deposit' ? 'Cash deposit' : r.type === 'atm' ? 'Cash withdrawal' : 'Bank transaction');
   }
   // put one bank line where it belongs
   function place(r, dec) {
+    if (r.sms) {
+      // a bank text is not in any statement yet: it lowers the bank wallet like a purchase logged by hand,
+      // until a statement import finds the same purchase and takes over (see finishImport)
+      var hm = r.time.split(':'), ts = parse(r.date).getTime() + (+hm[0] * 60 + +hm[1]) * 6e4;
+      if (dec.t === 'cat') {
+        S.tx.push({ id: uid(), date: r.date, ts: ts, amt: Math.abs(r.amt), cat: dec.v, src: 'bank', note: rowTitle(r), sms: true, key: r.key });
+      } else {
+        S.inc.push({ id: uid(), date: r.date, amt: r.amt, kind: dec.v, who: rowTitle(r), key: r.key, sms: true });
+        S.moves.push({ id: uid(), date: r.date, src: 'bank', amt: r.amt, why: 'sms', key: r.key });
+      }
+      return;
+    }
     if (dec.t === 'cat') {
       S.tx.push({ id: uid(), date: r.date, ts: parse(r.date).getTime() + 432e5, amt: Math.abs(r.amt), cat: dec.v, src: 'bank', note: rowTitle(r), bank: true, key: r.key });
     } else {
@@ -742,8 +762,12 @@
     fresh.forEach(function (r) {
       S.seenBank[r.key] = 1;
       // a card purchase you already logged by hand: keep yours, don't count it twice
-      var mine = r.amt < 0 && S.tx.filter(function (t) { return t.src === 'bank' && !t.bank && t.date === r.date && near(t.amt, -r.amt); })[0];
+      // purchases that came in from a bank text may sit a day off the statement date (late-night card payments)
+      var mine = r.amt < 0 && (S.tx.filter(function (t) { return t.src === 'bank' && !t.bank && t.date === r.date && near(t.amt, -r.amt); })[0] ||
+        S.tx.filter(function (t) { return t.sms && !t.bank && nextTo(t.date, r.date) && near(t.amt, -r.amt); })[0]);
       if (mine) { mine.bank = true; mine.key = r.key; auto++; return; }
+      var smsInc = r.amt < 0 && S.inc.filter(function (x) { return x.sms && !x.bank && nextTo(x.date, r.date) && near(x.amt, r.amt); })[0];
+      if (smsInc) { smsInc.bank = true; auto++; return; }
       var g = guess(r);
       if (g) { place(r, g); auto++; } else S.pending.push(r);
     });
@@ -766,11 +790,62 @@
       (got ? '<p class="keep">+' + got + ' 🧱 for importing</p>' : '<p class="keep">Nothing new in this file. You’re up to date.</p>') +
       (S.pending.length ? '<button class="primary" data-act="sort">Sort ' + S.pending.length + ' now</button><button class="ghost" data-act="close">Later</button>' : '<button class="primary" data-act="close">Done</button>'));
   }
+  function nextTo(a, b) { return Math.abs(parse(a) - parse(b)) < 1.5 * 864e5; }
+
+  /* ---------- bank texts (saved into a .txt file by an iPhone Shortcut) ---------- */
+  function importSms(file) {
+    if (!window.RKImport || !window.RKImport.parseSms) { toast('Import is still loading. Try again in a moment.'); return; }
+    var fr = new FileReader();
+    fr.onerror = function () { toast('Could not open that file.'); };
+    fr.onload = function () { finishSms(window.RKImport.parseSms(fr.result)); };
+    fr.readAsText(file, 'utf-8');
+  }
+  function finishSms(res) {
+    var fresh = res.rows.filter(function (r) { return !S.seenBank[r.key]; });
+    var added = 0, auto = 0, old = 0, joined = 0;
+    fresh.forEach(function (r) {
+      S.seenBank[r.key] = 1;
+      if (r.date < S.created) { old++; return; }
+      // already inside a statement you imported
+      if (S.lastBank && r.date <= S.lastBank) {
+        var inStmt = r.date < S.lastBank ||
+          S.tx.some(function (t) { return t.bank && nextTo(t.date, r.date) && near(t.amt, -r.amt); }) ||
+          S.pending.some(function (p) { return !p.sms && nextTo(p.date, r.date) && near(p.amt, r.amt); });
+        if (inStmt) { old++; return; }
+      }
+      // you already logged it by hand from the bank: keep yours
+      var mine = S.tx.filter(function (t) { return t.src === 'bank' && !t.bank && !t.sms && t.date === r.date && near(t.amt, -r.amt); })[0];
+      if (mine) { mine.sms = true; mine.key = r.key; joined++; return; }
+      added++;
+      var g = guess(r);
+      if (g) { place(r, g); auto++; } else S.pending.push(r);
+    });
+    var last = res.rows.reduce(function (a, r) { var k = r.date + ' ' + r.time; return k > a ? k : a; }, S.lastSms || '');
+    if (last) S.lastSms = last;
+    toastEl.classList.remove('show');
+    var got = 0;
+    if (added) { got = 20 + checkin(); S.bricks += 20; }
+    save(); renderHome();
+    if (!res.rows.length) {
+      sheet('No bank texts found', '<p class="keep" style="text-align:left">This file has no Alinma purchase texts in it. Is it <b>khartoum-bank-texts.txt</b> from your Shortcuts folder?</p><button class="primary" data-act="close">OK</button>');
+      return;
+    }
+    sheet('Bank texts read ✓',
+      '<div class="how"><div><b>' + added + '</b>new</div><div><b>' + auto + '</b>sorted for you</div><div><b>' + S.pending.length + '</b>need you</div></div>' +
+      (joined ? '<p class="keep" style="text-align:left">' + joined + ' you had already logged yourself. I kept yours.</p>' : '') +
+      (old ? '<p class="keep" style="text-align:left">' + old + ' were already in a statement you imported, or from before you started.</p>' : '') +
+      (res.other ? '<p class="keep" style="text-align:left">⚠️ ' + res.other + ' texts weren’t card purchases (transfers, refunds…), so I left them out. The weekly statement still catches them.</p>' : '') +
+      (got ? '<p class="keep">+' + got + ' 🧱 for syncing</p>' : '<p class="keep">Nothing new. You’re up to date.</p>') +
+      (S.pending.length ? '<button class="primary" data-act="sort">Sort ' + S.pending.length + ' now</button><button class="ghost" data-act="close">Later</button>' : '<button class="primary" data-act="close">Done</button>'));
+  }
+
   function bankCard() {
     return '<div class="card list"><h3>Bank statement</h3>' +
       (S.pending.length
         ? '<button class="primary" style="margin-top:10px" data-act="sort">Sort ' + S.pending.length + ' bank transaction' + (S.pending.length > 1 ? 's' : '') + '</button>'
-        : '<div class="empty">' + (S.lastBank ? 'Imported up to ' + niceDate(S.lastBank) + '. ' : '') + 'Download your statement PDF from the Alinma app, then import it here once a week. Card purchases sort themselves.</div>') +
+        : '<div class="empty">' + (S.lastBank ? 'Imported up to ' + niceDate(S.lastBank) + '. ' : '') + 'Tap <b>Sync bank texts</b> whenever you like to bring in today’s card purchases. Import the statement PDF once a week to catch everything else.</div>') +
+      '<label class="primary filebtn">Sync bank texts<input type="file" id="sms-in" accept="text/plain,.txt" hidden></label>' +
+      (S.lastSms ? '<div class="private" style="margin-top:6px">Last bank text: ' + niceDate(S.lastSms.slice(0, 10)) + ' at ' + S.lastSms.slice(11) + '</div>' : '') +
       '<label class="ghost filebtn">Import Alinma statement (PDF)<input type="file" id="pdf-in" accept="application/pdf,.pdf" hidden></label>' +
       '<div class="private" style="margin-top:8px">🔒 The file is read on this phone and never uploaded.</div></div>';
   }
@@ -1380,6 +1455,7 @@
 
   document.addEventListener('change', function (ev) {
     if (ev.target.id === 'pdf-in' && ev.target.files && ev.target.files[0]) { importPdf(ev.target.files[0]); ev.target.value = ''; }
+    if (ev.target.id === 'sms-in' && ev.target.files && ev.target.files[0]) { importSms(ev.target.files[0]); ev.target.value = ''; }
     if (ev.target.id === 'restore-in' && ev.target.files && ev.target.files[0]) { restoreFrom(ev.target.files[0]); ev.target.value = ''; }
   });
 

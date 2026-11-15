@@ -101,5 +101,29 @@
     });
   }
 
-  window.RKImport = { parse: parse };
+  // Alinma purchase texts, saved one after another into a text file by an iPhone Shortcut:
+  //   شراء عبر نقاط بيع SAR 39.42 / بطاقة 9*** مدى- ApplePay / من MOHAMMED R* / في 23:51 26-11-15
+  // The date is YY-MM-DD. The texts carry no balance, so the key is date + time + amount.
+  var SMS = /شراء([^\n]*?)SAR\s*([\d,]+(?:\.\d+)?)([\s\S]*?)في\s*(\d{1,2}):(\d{2})\s+(\d{2})-(\d{2})-(\d{2})/g;
+  function parseSms(text) {
+    text = String(text || '').replace(/\r/g, '');
+    var rows = [], m;
+    SMS.lastIndex = 0;
+    while ((m = SMS.exec(text))) {
+      var amt = n(m[2]);
+      if (!amt) continue;
+      var date = '20' + m[6] + '-' + m[7] + '-' + m[8], time = ('0' + m[4]).slice(-2) + ':' + m[5];
+      var from = /من\s+([^\n]+)/.exec(m[3]), shop = from ? from[1].replace(/\*+\s*$/, '').trim() : '';
+      var d = describe(shop);
+      rows.push({
+        key: 'sms|' + date + '|' + time + '|' + amt.toFixed(2), date: date, time: time, amt: -amt, bal: null,
+        desc: shop, type: /الإنترنت|الانترنت/.test(m[1]) ? 'online' : 'card', who: d.who, arabic: d.arabic, sms: true
+      });
+    }
+    // texts that mention SAR but aren't a purchase in the format above (transfers, refunds, a new layout)
+    var sar = (text.match(/SAR/g) || []).length;
+    return { rows: rows, other: Math.max(0, sar - rows.length) };
+  }
+
+  window.RKImport = { parse: parse, parseSms: parseSms };
 })();
